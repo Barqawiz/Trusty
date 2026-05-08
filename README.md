@@ -1,6 +1,6 @@
 # Trusty (Gemma)
 
-### Privacy-first local voice assistant for Mac & Raspberry Pi 5.
+### Privacy-first local voice assistant for Mac & Raspberry Pi.
 
 > Wake phrase: **"Hey Trusty"**.
 
