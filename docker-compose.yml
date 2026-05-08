@@ -1,0 +1,69 @@
+# Trusty support services.
+#
+#   docker compose up -d homeassistant music-assistant searxng
+#   docker compose logs -f homeassistant
+#   docker compose down
+#
+# Ports (bound to 0.0.0.0 — reachable from the LAN, not just loopback):
+#   8123  Home Assistant
+#   8095  Music Assistant
+#   8088  SearXNG
+#
+# Why LAN-bound (0.0.0.0) and not loopback-only (127.0.0.1):
+#   Music Assistant's Spotify OAuth flow needs the browser to reach a
+#   stable, externally-resolvable callback URL. When MA is bound to
+#   127.0.0.1 it advertises an internal Docker IP (e.g. 172.20.0.3) the
+#   browser can't reach, and the redirect dies. Binding to 0.0.0.0 and
+#   doing OAuth from the host's LAN IP (e.g. http://192.168.1.27:8095)
+#   fixes it. Home Assistant and SearXNG match for consistency.
+#
+# Security note:
+#   Any device on the same LAN can now reach these ports. Acceptable on
+#   a home Wi-Fi where you control the devices. NOT acceptable on a
+#   public/coffee-shop network — switch back to "127.0.0.1:..." in that
+#   case (and accept that Spotify OAuth won't work until you're home).
+#   Home Assistant has its own login. Music Assistant should also be
+#   password-protected via its UI before relying on LAN exposure.
+#
+# Notes:
+# - On Raspberry Pi 5 (Linux), switch HA + Music Assistant to
+#   `network_mode: host` so the LG webOS TV can be discovered via UPnP/SSDP.
+#   On Docker Desktop for Mac, `host` mode does not work (the host is the
+#   Linux VM, not the Mac), so we keep port mapping here. Add the TV by IP.
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: trusty-homeassistant
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8123:8123"
+    volumes:
+      - ./external/.docker/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=UTC
+
+  music-assistant:
+    image: ghcr.io/music-assistant/server:latest
+    container_name: trusty-music-assistant
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8095:8095"
+    volumes:
+      - ./external/.docker/music-assistant:/data
+      - ./music:/media/local-music:ro
+    environment:
+      - LOG_LEVEL=info
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: trusty-searxng
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8088:8080"
+    volumes:
+      - ./external/.docker/searxng:/etc/searxng
+    environment:
+      - INSTANCE_NAME=trusty
+      - SEARXNG_BASE_URL=http://localhost:8088/

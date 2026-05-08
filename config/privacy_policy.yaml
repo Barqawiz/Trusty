@@ -1,0 +1,23 @@
+# Hard privacy floor. The validator rejects any tool call whose payload
+# contains anything in `globally_forbidden`, regardless of the tool's own
+# allowed_external_payload list. This is the second line of defence after
+# the per-tool schema in tools.yaml.
+
+globally_forbidden:
+  - audio
+  - microphone_audio
+  - wake_word_audio
+  - speech_recording
+  - home_logs
+  - raw_sensor_logs
+  - camera_image
+  - camera_frame
+
+# Promises surfaced in the privacy ledger and Eyes UI.
+core_promise:
+  audio_leaves_device: false
+  home_logs_leave_device: false
+  internet_text_only: true
+
+# Banner shown when the model attempts a forbidden payload.
+block_message: "Privacy policy blocked this request."

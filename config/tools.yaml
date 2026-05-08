@@ -1,0 +1,141 @@
+# Trusty tool registry — single source of truth for the privacy validator and orchestrator.
+# Every tool the planner can choose must be listed here. New tools require:
+#   1. an entry below
+#   2. a Python adapter in tools/
+#   3. a registration in app/tool_registry.py
+
+tools:
+  local.answer:
+    backend: gemma_local
+    internet: false
+    offline: true
+    sends_audio: false
+    description: Answer general knowledge from the local Gemma model.
+    actions: [answer]
+
+  home.tv:
+    backend: home_assistant
+    internet: false
+    offline: true
+    sends_audio: false
+    description: Control the LG webOS TV via Home Assistant.
+    actions:
+      - turn_on
+      - turn_off
+      - open_app
+      - select_source
+      - volume_up
+      - volume_down
+      - mute
+      - show_notification
+      - get_state
+
+  home.vacuum:
+    backend: home_assistant
+    internet: false
+    offline: true
+    sends_audio: false
+    description: |
+      Control the Roborock vacuum via Home Assistant. LAN-only — no
+      internet, no payloads leave the device. Service map lives in
+      config/home_skills.yaml.
+    actions:
+      - start
+      - pause
+      - return_to_dock
+      - stop
+      - locate
+      - set_fan_speed
+      - get_state
+
+  music:
+    backend: music_assistant
+    internet: conditional
+    offline: true
+    sends_audio: false
+    description: |
+      Play music. play_search routes a free-text query through Music
+      Assistant (Spotify / YouTube Music / etc.); play_local_folder uses
+      the offline music folder. Pause/resume/volume control whatever is
+      currently playing.
+    actions:
+      - play_search        # online named playback via MA (e.g. "play happy birthday")
+      - play_local_folder  # offline random from LOCAL_MUSIC_DIR
+      - play_local_file
+      - pause              # keep position, can resume
+      - resume             # continue from pause
+      - stop               # full stop, clears queue state
+      - next               # skip to next track in queue
+      - volume
+    allowed_external_payload:
+      # Validator maps planner.external_payload="text_query_only" → "text_query"
+      # before checking this list. Allows the search query string to leave the
+      # device (HA → MA → Spotify/YouTube Music). No audio, no PII.
+      - text_query
+    forbidden_payload:
+      - audio
+      - home_logs
+
+  weather.live:
+    backend: open_meteo
+    internet: true
+    offline: false
+    sends_audio: false
+    description: Live weather; only the user-provided location text leaves the device.
+    actions: [forecast, rain_probability, current]
+    allowed_external_payload:
+      - location_text
+      - derived_coordinates
+      - weather_query
+    forbidden_payload:
+      - audio
+      - home_logs
+
+  internet.search:
+    backend: searxng
+    internet: true
+    offline: false
+    sends_audio: false
+    description: Text-only web search via local SearXNG; only the query text leaves.
+    actions: [research]
+    allowed_external_payload:
+      - text_query
+    forbidden_payload:
+      - audio
+      - home_logs
+
+  system.power:
+    backend: runtime
+    internet: false
+    offline: true
+    sends_audio: false
+    description: |
+      Soft sleep/wake for Trusty. `sleep` flips the runtime `paused` flag
+      (same as the admin panel's Pause Trusty switch); `wake` flips it
+      back. While paused, /chat short-circuits with a brief reminder
+      until a wake phrase comes in.
+    actions:
+      - sleep
+      - wake
+
+  memory:
+    backend: local
+    internet: false
+    offline: true
+    sends_audio: false
+    description: |
+      Local user-facts store. Writes go to data/memory.json on this
+      device — nothing leaves. Use when the user explicitly asks to
+      remember / set / change / forget their location, name, or memory.
+    actions:
+      - set_location
+      - set_name
+      - clear
+
+  none:
+    backend: none
+    internet: false
+    offline: true
+    sends_audio: false
+    description: No tool — used when a request is blocked or needs clarification.
+    actions: [ask_for_location, blocked, clarify]

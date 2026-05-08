@@ -1,0 +1,366 @@
+/* Trusty Eyes — Pi 320×480 SPI LCD layout.
+ *
+ * The default eyes/ UI is landscape: two eyes side-by-side with the caption
+ * panel underneath ( ._. ). The Pi LCD is physically mounted portrait, so
+ * this view lays out like that landscape face rotated left: eyes stack on the
+ * left side and the caption panel becomes a rail on the right:
+ *
+ *     .
+ *       |
+ *     .
+ *
+ * Eye colors, music scene, reaction badge, privacy pill etc. are visually
+ * identical to eyes/styles.css so the kiosk feels like the same assistant.
+ */
+
+:root {
+    --bg-top: #0a0a0f;
+    --bg-bottom: #14141c;
+    --fg: #f3f3f5;
+    --muted: #8b91a3;
+    --eye-stroke: #f3f3f5;
+    --iris: #1E90FF;
+    --glass-bg: rgba(255, 255, 255, 0.06);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --pill-bg: rgba(255, 255, 255, 0.08);
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    --rail-width: clamp(104px, 31vw, 132px);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; padding: 0; }
+
+body {
+    background:
+        radial-gradient(ellipse 80% 60% at 50% 30%, #1a1a26 0%, var(--bg-top) 60%, var(--bg-bottom) 100%);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+                 Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+}
+
+/* --- Layout grid: eyes stage on the left, caption rail on the right -------- */
+#layoutGrid {
+    display: grid;
+    grid-template-columns: 1fr var(--rail-width);
+    width: 100%;
+    height: 100%;
+}
+
+/* --- Caption rail (the "|") on the RIGHT --- */
+#captionRail {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--glass-bg);
+    border-left: 1px solid var(--glass-border);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    padding: 0;
+    overflow: hidden;
+    grid-column: 2;
+    grid-row: 1;
+    z-index: 2;
+    transform: translateX(-140px);
+}
+.caption {
+    position: absolute;
+    top: 50%;
+    left: 36%;
+    width: calc(100vh - 24px);
+    max-width: calc(100vh - 24px);
+    transform: translate(-50%, -50%) rotate(-90deg);
+    transform-origin: center;
+    white-space: nowrap;
+    font-size: clamp(20px, 6vw, 30px);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 280ms ease, transform 320ms cubic-bezier(.2,.7,.2,1);
+}
+.caption.fade-out {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-90deg) translateY(8px);
+}
+
+/* --- Stage with eyes canvas --- */
+#stage {
+    position: relative;
+    overflow: hidden;
+    grid-column: 1;
+    grid-row: 1;
+}
+#eyesCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    transition: opacity 320ms ease;
+}
+
+/* --- Mode toggle button (opposite the caption rail) --- */
+.mode-toggle {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--fg);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 20;
+    transition: transform 200ms ease, background 200ms ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+.mode-toggle:hover { transform: scale(1.06); }
+.mode-toggle:active { transform: scale(0.96); }
+
+/* --- Album mode (slideshow) --- */
+.album {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 320ms ease;
+}
+.album.show { opacity: 1; }
+.album-img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100vh;
+    height: 100vw;
+    object-fit: cover;
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    transition: opacity 1200ms ease;
+    background: #000;
+}
+.album-img.active { opacity: 1; }
+.album-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: clamp(15px, 4vw, 22px);
+    text-align: center;
+    padding: 0 20px;
+    z-index: 1;
+    transform: rotate(-90deg);
+}
+.album-empty[hidden] { display: none !important; }
+body.mode-album #eyesCanvas { opacity: 0; pointer-events: none; }
+body.mode-album #reaction { opacity: 0 !important; }
+
+/* --- Music scene (vinyl + CRT scanlines) — same look as eyes/ --- */
+.music-scene {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 3vh, 24px);
+    background:
+        radial-gradient(circle at 50% 38%, #1a1f2c 0%, #0a0e16 60%, #03050a 100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 320ms ease;
+    z-index: 3;
+    overflow: hidden;
+}
+.music-scene.show { opacity: 1; }
+
+.ms-stage {
+    position: relative;
+    width: clamp(140px, 50vmin, 280px);
+    height: clamp(140px, 50vmin, 280px);
+}
+.ms-vinyl {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #1c1c1c 0%, #0a0a0a 70%);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7), inset 0 0 0 4px #2a2a2a;
+    animation: ms-spin 2.4s linear infinite;
+}
+.ms-vinyl-grooves {
+    position: absolute; inset: 6%; border-radius: 50%;
+    background: repeating-radial-gradient(circle, transparent 0, transparent 5px, rgba(255,255,255,0.04) 5px, rgba(255,255,255,0.04) 6px);
+}
+.ms-vinyl-label {
+    position: absolute; inset: 36%; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ff5a3c, #b73223 70%);
+    box-shadow: inset 0 0 0 3px rgba(0,0,0,0.35);
+}
+.ms-vinyl-hole {
+    position: absolute; inset: 47.5%; border-radius: 50%;
+    background: #03050a; box-shadow: inset 0 0 0 1px #0d0f15;
+}
+.ms-tonearm {
+    position: absolute; top: -6%; right: -10%; width: 62%; height: 7%;
+    transform-origin: 100% 50%;
+    transform: rotate(28deg);
+    z-index: 2;
+    animation: ms-arm 4.8s ease-in-out infinite;
+}
+.ms-tonearm > span {
+    display: block; height: 100%; border-radius: 4px;
+    background: linear-gradient(180deg, #d0d0d0, #6f6f6f 60%, #2c2c2c);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 10px rgba(0,0,0,0.5);
+}
+.ms-tonearm::before {
+    content: ''; position: absolute; right: -12px; top: 50%;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: linear-gradient(135deg, #c8c8c8, #6a6a6a);
+    transform: translateY(-50%);
+    box-shadow: 0 0 0 2px #303030, 0 4px 8px rgba(0,0,0,0.5);
+}
+.ms-tonearm::after {
+    content: ''; position: absolute; left: 0; top: 50%;
+    width: 14px; height: 14px; border-radius: 3px;
+    background: linear-gradient(135deg, #f4d56a, #b78816);
+    transform: translateY(-50%);
+}
+.ms-marquee {
+    display: flex; align-items: center; gap: 12px;
+    color: #f1ecdc;
+    font-family: "Courier New", "Lucida Console", ui-monospace, monospace;
+    font-size: clamp(12px, 3vw, 18px);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    text-shadow: 0 0 6px rgba(241,236,220,0.4);
+    padding: 0 8px;
+    text-align: center;
+}
+.ms-note {
+    color: #ff5a3c;
+    animation: ms-note-flash 0.8s ease-in-out infinite alternate;
+}
+.ms-note + .ms-text + .ms-note { animation-delay: 0.4s; }
+.ms-text { white-space: nowrap; }
+.ms-text::after {
+    content: '...'; display: inline-block; width: 1.5ch; overflow: hidden;
+    vertical-align: bottom; text-align: left;
+    animation: ms-dots 1.6s steps(4) infinite;
+}
+.ms-scanlines {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(180deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.20) 3px, rgba(0,0,0,0.20) 4px);
+    mix-blend-mode: multiply;
+}
+.ms-scanlines::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+}
+body.mode-music #eyesCanvas { opacity: 0; pointer-events: none; }
+body.mode-music #reaction { opacity: 0 !important; }
+
+@keyframes ms-spin       { from { transform: rotate(0); }   to { transform: rotate(360deg); } }
+@keyframes ms-arm        { 0% { transform: rotate(28deg); } 50% { transform: rotate(18deg); } 100% { transform: rotate(28deg); } }
+@keyframes ms-note-flash { from { opacity: 0.4; transform: translateY(0); } to { opacity: 1; transform: translateY(-4px); } }
+@keyframes ms-dots       { 0% { width: 0; } 100% { width: 1.5ch; } }
+
+/* --- Reaction icon (smaller on the LCD) --- */
+.reaction {
+    position: absolute;
+    top: 6%;
+    right: 6%;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    line-height: 1;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transform: scale(0.7) translateY(-8px);
+    transition: opacity 360ms cubic-bezier(.2,.7,.2,1),
+                transform 360ms cubic-bezier(.2,.7,.2,1);
+    pointer-events: none;
+}
+.reaction.show { opacity: 1; transform: scale(1) translateY(0); }
+.reaction[data-anim="searching"] #reactionIcon { display: inline-block; animation: spin 1.6s linear infinite; }
+.reaction[data-anim="music"]     #reactionIcon { display: inline-block; animation: bounce 0.8s ease-in-out infinite alternate; }
+.reaction[data-anim="weather"]   #reactionIcon { display: inline-block; animation: drift 3s ease-in-out infinite alternate; }
+.reaction[data-anim="thinking"]  #reactionIcon { display: inline-block; animation: pulse 1.2s ease-in-out infinite; }
+.reaction[data-anim="listening"] #reactionIcon { display: inline-block; animation: pulse 1s ease-in-out infinite; }
+.reaction[data-anim="tv"]        #reactionIcon,
+.reaction[data-anim="vacuum"]    #reactionIcon { display: inline-block; animation: tilt 1.4s ease-in-out infinite alternate; }
+.reaction[data-anim="blocked"]   #reactionIcon,
+.reaction[data-anim="error"]     #reactionIcon { display: inline-block; animation: shake 0.6s ease-in-out infinite alternate; }
+
+@keyframes spin   { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+@keyframes drift  { from { transform: translateX(-6px); } to { transform: translateX(6px); } }
+@keyframes pulse  { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.7; } }
+@keyframes tilt   { from { transform: rotate(-7deg); } to { transform: rotate(7deg); } }
+@keyframes shake  { from { transform: translateX(-4px); } to { transform: translateX(4px); } }
+
+/* --- Privacy badge — tucked into the bottom-right of the stage --- */
+.privacy {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px 3px 8px;
+    border-radius: 999px;
+    background: var(--pill-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    user-select: none;
+    z-index: 5;
+    transform: rotate(-90deg);
+    transform-origin: bottom left;
+}
+.privacy .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #3fb950; box-shadow: 0 0 5px #3fb950aa;
+    flex: 0 0 auto;
+}
+.privacy.warn .dot  { background: #d29922; box-shadow: 0 0 5px #d29922aa; }
+.privacy.alert .dot { background: #f85149; box-shadow: 0 0 5px #f85149aa; }
+
+/* --- Light mode (dev preview only) --- */
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg-top: #f7f8fb;
+        --bg-bottom: #e7eaf1;
+        --fg: #0a0a0f;
+        --muted: #5b6272;
+        --eye-stroke: #0a0a0f;
+        --glass-bg: rgba(255, 255, 255, 0.55);
+        --glass-border: rgba(0, 0, 0, 0.08);
+        --pill-bg: rgba(255, 255, 255, 0.7);
+    }
+}

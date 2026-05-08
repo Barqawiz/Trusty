@@ -1,0 +1,8 @@
+# Tools blocked when TRUSTY_MODE=offline. The internet_policy module reads
+# this list and refuses any tool name that appears here.
+
+blocked_when_offline:
+  - weather.live
+  - internet.search
+
+offline_message: "Offline mode is on, so I can't reach the internet for that."

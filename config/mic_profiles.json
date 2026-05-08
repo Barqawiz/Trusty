@@ -1,0 +1,29 @@
+{
+  "_comment": "Per-mic capture profiles. The recorder picks a profile by matching any string in 'match' against the device name (case-insensitive); first match wins. 'default' is used when nothing matches. Edit / extend at will — restart the voice loop to apply.",
+
+  "default": {
+    "speech_rms": 350,
+    "silence_rms": 200,
+    "scale": 1.0,
+    "description": "Cheap C-Media-class USB mics with a quiet idle floor."
+  },
+
+  "profiles": [
+    {
+      "name": "razer",
+      "match": ["razer", "seiren"],
+      "speech_rms": 1000,
+      "silence_rms": 750,
+      "scale": 0.5,
+      "description": "Razer Seiren / similar hot-preamp USB mics. Software-attenuated to keep peak RMS out of int16 clipping."
+    },
+    {
+      "name": "macbook",
+      "match": ["macbook", "built-in"],
+      "speech_rms": 700,
+      "silence_rms": 500,
+      "scale": 2.0,
+      "description": "Apple MacBook built-in mic — soft preamp / built into laptop chassis far from speaker. Software-boosted ~2x so Moonshine has enough signal to lock onto."
+    }
+  ]
+}

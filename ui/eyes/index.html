@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a0f">
+    <title>Trusty Eyes</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <button id="modeToggle" class="mode-toggle" aria-label="Toggle eyes / photo album">
+        <span id="modeToggleIcon">🖼️</span>
+    </button>
+
+    <div id="stage">
+        <canvas id="eyesCanvas"></canvas>
+        <div id="album" class="album" aria-hidden="true">
+            <img id="albumImgA" class="album-img" alt="">
+            <img id="albumImgB" class="album-img" alt="">
+            <div id="albumEmpty" class="album-empty" hidden>
+                No photos yet. Upload some from the admin panel.
+            </div>
+        </div>
+        <div id="musicScene" class="music-scene" aria-hidden="true">
+            <div class="ms-stage">
+                <div class="ms-vinyl">
+                    <div class="ms-vinyl-grooves"></div>
+                    <div class="ms-vinyl-label"></div>
+                    <div class="ms-vinyl-hole"></div>
+                </div>
+                <div class="ms-tonearm"><span></span></div>
+            </div>
+            <div class="ms-marquee">
+                <span class="ms-note">♪</span>
+                <span id="musicSceneText" class="ms-text">CUEING TRACK</span>
+                <span class="ms-note">♫</span>
+            </div>
+            <div class="ms-scanlines"></div>
+        </div>
+        <div id="reaction" class="reaction" aria-hidden="true">
+            <span id="reactionIcon"></span>
+        </div>
+        <div id="privacy" class="privacy" aria-live="polite">
+            <span class="dot"></span>
+            <span id="privacyText">idle</span>
+        </div>
+    </div>
+
+    <div id="captionPanel" class="caption-panel">
+        <div id="caption" class="caption">Hey Trusty</div>
+    </div>
+
+    <script src="eyes.js"></script>
+</body>
+</html>

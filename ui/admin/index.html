@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trusty Admin</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <span class="logo">●</span>
+            <h1>Trusty Admin</h1>
+        </div>
+        <nav>
+            <a href="/eyes/" target="_blank">Eyes UI ↗</a>
+            <a href="https://github.com/Barqawiz" target="_blank" rel="noopener">Help</a>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Runtime mode + privacy switches -->
+        <section class="card">
+            <h2>Runtime</h2>
+            <div class="row">
+                <div class="field">
+                    <label>Mode</label>
+                    <div class="seg">
+                        <button data-mode="online" id="modeOnline">Online</button>
+                        <button data-mode="offline" id="modeOffline">Offline</button>
+                    </div>
+                    <p class="hint">Offline blocks <code>weather.live</code> and <code>internet.search</code>.</p>
+                </div>
+                <div class="field">
+                    <label>Pause Trusty</label>
+                    <label class="switch">
+                        <input type="checkbox" id="pausedSwitch">
+                        <span class="slider"></span>
+                    </label>
+                    <p class="hint">Soft kill: every <code>/chat</code> short-circuits with "Trusty is paused" until you flip it back.</p>
+                </div>
+                <div class="field">
+                    <label>Wake-word threshold</label>
+                    <input type="number" id="wakeThreshold" min="0.1" max="0.95" step="0.05">
+                    <p class="hint">Default 0.5. Higher = fewer false triggers.</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="field readonly">
+                    <label>Audio upload</label>
+                    <div class="lock">
+                        <span class="locked">forbidden ✓</span>
+                        <p class="hint">Hard-locked. Microphone audio never leaves the device.</p>
+                    </div>
+                </div>
+                <div class="field readonly">
+                    <label>Home log upload</label>
+                    <div class="lock">
+                        <span class="locked">forbidden ✓</span>
+                        <p class="hint">Hard-locked. Sensor data stays local.</p>
+                    </div>
+                </div>
+            </div>
+            <p class="hint" style="margin-top:12px">
+                To stop processes, see <code>RUNBOOK.md</code> &rarr; <em>Stop</em>.
+            </p>
+        </section>
+
+        <!-- Memory -->
+        <section class="card">
+            <div class="card-head">
+                <h2>Memory</h2>
+                <div>
+                    <button class="ghost" id="refreshMemory">↻ Refresh</button>
+                    <button class="ghost danger" id="clearMemory">Clear memory</button>
+                </div>
+            </div>
+            <pre id="memoryView" class="result"></pre>
+        </section>
+
+        <!-- Service health -->
+        <section class="card">
+            <div class="card-head">
+                <h2>Services</h2>
+                <button class="ghost" id="refreshSvc">↻ Refresh</button>
+            </div>
+            <div id="services" class="services"></div>
+        </section>
+
+        <!-- Quick test -->
+        <section class="card">
+            <h2>Quick test</h2>
+            <form id="chatForm" class="chat">
+                <input type="text" id="chatInput" placeholder='e.g. "Will it rain in Dublin today?"' autocomplete="off" required>
+                <button type="submit">Send</button>
+            </form>
+            <pre id="chatResult" class="result"></pre>
+        </section>
+
+        <!-- Music shortcuts -->
+        <section class="card">
+            <div class="card-head">
+                <h2>Music</h2>
+                <button class="ghost" id="openMusicFolder">📂 Open offline folder</button>
+            </div>
+            <p class="hint">
+                Drop <code>.mp3</code> / <code>.flac</code> files into the
+                folder to make them available for the offline music tool
+                (<code>play_local_folder</code>). Online named playback
+                (<em>"play happy birthday"</em>) goes through Music
+                Assistant — no folder needed.
+            </p>
+        </section>
+
+        <!-- Photo album -->
+        <section class="card">
+            <div class="card-head">
+                <h2>Photo album</h2>
+                <div>
+                    <button class="ghost" id="refreshPhotos">↻ Refresh</button>
+                    <button class="ghost" id="albumModeBtn">🖼️ Show album on Eyes</button>
+                    <button class="ghost" id="eyesModeBtn">👁️ Back to eyes</button>
+                </div>
+            </div>
+            <p class="hint">
+                Drop images here (or click to browse). Stored locally in
+                <code>photos/</code>. Toggle the Eyes UI to slideshow with
+                the buttons above or by saying
+                <em>"Trusty, show the album"</em> /
+                <em>"Trusty, back to eyes"</em>.
+            </p>
+            <label id="photoDrop" class="photo-drop" for="photoInput">
+                <input type="file" id="photoInput" accept="image/*" multiple hidden>
+                <div class="photo-drop-inner">
+                    <span class="photo-drop-icon">＋</span>
+                    <span class="photo-drop-label">Click or drop images</span>
+                </div>
+            </label>
+            <div id="photoStatus" class="photo-status"></div>
+            <div id="photoGrid" class="photo-grid"></div>
+        </section>
+
+        <!-- Privacy ledger -->
+        <section class="card">
+            <div class="card-head">
+                <h2>Privacy ledger</h2>
+                <button class="ghost" id="refreshLedger">↻ Refresh</button>
+            </div>
+            <table class="ledger">
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>Tool</th>
+                        <th>Action</th>
+                        <th>Internet</th>
+                        <th>Payload</th>
+                        <th>Audio</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="ledger"></tbody>
+            </table>
+        </section>
+
+        <!-- Live activity feed -->
+        <section class="card">
+            <h2>Live activity</h2>
+            <ul id="feed" class="feed">
+                <li class="feed-empty">Waiting for state updates over WebSocket…</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <span>Trusty</span> · privacy-first local voice assistant ·
+        <a href="/eyes/" target="_blank">Eyes UI</a>
+    </footer>
+
+    <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+# Declarative Home Assistant skill registry.
+#
+# Each entry under `skills:` becomes a Trusty tool named `home.<key>`. The
+# generic adapter in tools/home_skills.py reads this file at startup and
+# wires one handler per skill against ToolRegistry. Adding a new HA
+# integration (lights, locks, blinds, ...) is a YAML edit + a tools.yaml
+# entry — no Python changes needed.
+#
+# Per-skill fields:
+#   tool             planner tool name (must match the entry in tools.yaml)
+#   entity_id_env    Settings field whose value is the HA entity_id
+#   description      free text, surfaced in logs
+#   actions          map of action_name -> action spec (see below)
+#
+# Action spec fields:
+#   domain           HA service domain (e.g. "vacuum", "light")
+#   service          HA service name (e.g. "start", "return_to_base")
+#   argmap           planner.arguments key -> HA service field name. Each
+#                    listed arg is forwarded only if the planner provided it.
+#   speak            short reply spoken on success. May reference {fields}
+#                    from arguments via str.format.
+#   kind: state      special form — issues GET /api/states/<entity_id>
+#                    instead of a service call. Use `speak_template` to
+#                    build the reply (sees the state JSON as `state=...`,
+#                    plus all attributes by name).
+
+skills:
+  vacuum:
+    tool: home.vacuum
+    entity_id_env: VACUUM_ENTITY_ID
+    description: Roborock vacuum control via Home Assistant.
+    actions:
+      start:
+        domain: vacuum
+        service: start
+        speak: "Starting the vacuum."
+      pause:
+        domain: vacuum
+        service: pause
+        speak: "Vacuum paused."
+      return_to_dock:
+        domain: vacuum
+        service: return_to_base
+        speak: "Sending the vacuum back to the dock."
+      stop:
+        domain: vacuum
+        service: stop
+        speak: "Vacuum stopped."
+      locate:
+        domain: vacuum
+        service: locate
+        speak: "Pinging the vacuum."
+      set_fan_speed:
+        domain: vacuum
+        service: set_fan_speed
+        argmap:
+          fan_speed: fan_speed
+        speak: "Setting vacuum fan speed to {fan_speed}."
+      get_state:
+        kind: state
+        speak_template: "The vacuum is {state}."

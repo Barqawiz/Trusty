@@ -1,0 +1,19 @@
+[Unit]
+Description=Trusty - Eyes static UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/trusty
+EnvironmentFile=/home/pi/trusty/.env
+ExecStart=/home/pi/trusty/scripts/run_eyes.sh
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
