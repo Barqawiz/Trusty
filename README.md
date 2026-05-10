@@ -50,12 +50,12 @@ bash scripts/smoke_test.sh        # verify
 
 Open <http://localhost:8090/eyes/> for the eyes, <http://localhost:8090/admin/> for the admin panel.
 
-Full command flow → [`RUNBOOK.md`](RUNBOOK.md).
-Pi deployment + custom wake-word training → [`NEXT_STEPS.md`](NEXT_STEPS.md).
+Full command flow (Mac + Pi) → [`RUNBOOK.md`](RUNBOOK.md).
+Custom wake-word training → [`WAKE_WORD.md`](WAKE_WORD.md).
 
 ## Pi easy start
 
-After the Pi is provisioned (see [`NEXT_STEPS.md`](NEXT_STEPS.md) for the
+After the Pi is provisioned (see [`RUNBOOK.md`](RUNBOOK.md#pi) for the
 one-time setup), every reboot needs **one command** from your laptop:
 
 ```bash
@@ -136,8 +136,6 @@ Also runs on macOS (Apple Silicon / Intel) see *Quick start (Mac dev)* above
 - [`RUNBOOK.md`](RUNBOOK.md)  commands only, Mac + Pi
 - [`TV_SETUP.md`](TV_SETUP.md)  pair the LG webOS TV with Home Assistant
 - [`WAKE_WORD.md`](WAKE_WORD.md)  change the wake word, including custom training
-- [`NEXT_STEPS.md`](NEXT_STEPS.md)  testing, Pi deploy, files-to-delete
-- [`blueprint.md`](blueprint.md)  full design rationale and competition notes
 
 ## Memory tips for low-RAM devices
 

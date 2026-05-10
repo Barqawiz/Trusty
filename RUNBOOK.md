@@ -1,7 +1,8 @@
 # Trusty Runbook
 
-Just the commands. For background, troubleshooting, and customization see
-`[NEXT_STEPS.md](NEXT_STEPS.md)`.
+Just the commands. For project background and architecture see
+[`README.md`](README.md). For wake-word customization see
+[`WAKE_WORD.md`](WAKE_WORD.md).
 
 ---
 
@@ -10,7 +11,7 @@ Just the commands. For background, troubleshooting, and customization see
 ### First-time setup
 
 ```bash
-cd /Users/ahmad/Work/Projects/Trusty
+cd ~/trusty
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 bash scripts/download_models.sh
@@ -26,10 +27,10 @@ bash scripts/run_llama_server.sh
 # B
 bash scripts/run_trusty.sh
 
-# C  (optional — also served at http://localhost:8090/eyes/)
+# C  (optional, also served at http://localhost:8090/eyes/)
 bash scripts/run_eyes.sh
 
-# D  voice loop — wake word + STT + TTS on this Mac (see "Voice on Mac" below)
+# D  voice loop: wake word + STT + TTS on this Mac (see "Voice on Mac" below)
 bash scripts/run_voice.sh
 ```
 
@@ -37,9 +38,9 @@ bash scripts/run_voice.sh
 
 > **Wake word for the MVP: "Hey Jarvis"** (openWakeWord built-in, rebadged
 > as "Hey Trusty" in the UI). Custom `hey_trusty.tflite` training is a
-> separate step — see NEXT_STEPS.md Part 3.
+> separate step, see [`WAKE_WORD.md`](WAKE_WORD.md).
 
-The Eyes UI does **not** open the microphone — it's a display. The voice
+The Eyes UI does **not** open the microphone, it's a display. The voice
 loop is a separate process (`voice/loop.py`) that captures the mic, listens
 for the wake word, transcribes with whisper.cpp, sends to Trusty, and
 speaks the reply with Kokoro.
@@ -51,12 +52,12 @@ System Settings → Privacy & Security → Microphone → enable Terminal (or iT
 ```
 
 If macOS doesn't prompt automatically, open Terminal yourself and run any
-mic test (the `peak amplitude` snippet below) — that triggers the prompt.
+mic test (the `peak amplitude` snippet below): that triggers the prompt.
 
 #### 2. Confirm mic + speaker work
 
 ```bash
-# Mic — should print >2000 if you speak; ~0 means blocked or muted
+# Mic: should print >2000 if you speak; ~0 means blocked or muted
 .venv/bin/python -c "
 import sounddevice as sd, numpy as np
 print('Speak for 3 s...')
@@ -64,14 +65,14 @@ rec = sd.rec(int(3*16000), samplerate=16000, channels=1, dtype='int16'); sd.wait
 print('peak amplitude:', int(np.abs(rec).max()))
 "
 
-# Speaker — should play a short Kokoro sample through the default output
+# Speaker: should play a short Kokoro sample through the default output
 set -a && . ./.env && set +a
 .venv/bin/python -c "from voice.tts_kokoro import speak; speak('Trusty audio test.')"
 ```
 
 The mic and speaker each follow whatever device is **selected as Input /
 Output** in *System Settings → Sound*. Headphones, AirPods, USB headsets
-all work — just make sure the right device is selected.
+all work, just make sure the right device is selected.
 
 #### 3. Run the voice loop
 
@@ -121,12 +122,12 @@ Ctrl-C in that terminal.
 
 | Symptom                                                  | Fix                                                                                                                                                                             |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wake word never fires                                    | Run the mic test above — peak should be >2000 when you talk. If 0, mic permission isn't granted to your terminal.                                                               |
+| Wake word never fires                                    | Run the mic test above: peak should be >2000 when you talk. If 0, mic permission isn't granted to your terminal.                                                               |
 | Wake word triggers on background noise                   | Raise the threshold in the Admin UI (Wake-word threshold). 0.6 is usually quieter than 0.5.                                                                                     |
 | Reply is silent but log shows `TRUSTY:` line             | Check macOS Sound output device. Try the speaker test snippet above.                                                                                                            |
-| Voice loop cuts you off mid-sentence                     | Already tuned — recordings now wait for 1.6 s of silence *after* speech is detected, with a 2 s minimum. If still cutting off, lower `silence_rms` in `voice/audio_capture.py`. |
-| Transcript misheard ("That's" instead of "What's")       | The default model is now `small.en` — much better with accents than base.en. If still rough, try `medium.en` (~1.5 GB) by editing `WHISPER_MODEL_PATH` in `.env`.               |
-| Trusty replies "Sorry, I had trouble understanding that" | Should be rare now — orchestrator falls through to a plain local answer if Gemma's planner fails. If you still see it, llama-server is probably down.                           |
+| Voice loop cuts you off mid-sentence                     | Already tuned: recordings now wait for 1.6 s of silence *after* speech is detected, with a 2 s minimum. If still cutting off, lower `silence_rms` in `voice/audio_capture.py`. |
+| Transcript misheard ("That's" instead of "What's")       | The default model is now `small.en`, much better with accents than base.en. If still rough, try `medium.en` (~1.5 GB) by editing `WHISPER_MODEL_PATH` in `.env`.               |
+| Trusty replies "Sorry, I had trouble understanding that" | Should be rare now: orchestrator falls through to a plain local answer if Gemma's planner fails. If you still see it, llama-server is probably down.                           |
 
 
 ### Test
@@ -146,9 +147,9 @@ curl -sX POST http://127.0.0.1:8090/chat \
 
 | Page    | URL                                                          | What it does                                                                                          |
 | ------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Eyes    | [http://localhost:8090/eyes/](http://localhost:8090/eyes/)   | Animated eye + status caption + privacy chip. Display only — does not listen.                         |
+| Eyes    | [http://localhost:8090/eyes/](http://localhost:8090/eyes/)   | Animated eye + status caption + privacy chip. Display only, does not listen.                         |
 | Admin   | [http://localhost:8090/admin/](http://localhost:8090/admin/) | Mode toggle (online/offline), Pause Trusty switch, service health, quick test, ledger, live activity. |
-| HA      | [http://localhost:8123](http://localhost:8123)               | Home Assistant — pair the LG TV here.                                                                 |
+| HA      | [http://localhost:8123](http://localhost:8123)               | Home Assistant, pair the LG TV here.                                                                 |
 | MA      | [http://localhost:8095](http://localhost:8095)               | Music Assistant.                                                                                      |
 | SearXNG | [http://localhost:8088](http://localhost:8088)               | Local web search.                                                                                     |
 
@@ -188,7 +189,7 @@ First load takes ~1 min. Create the admin account when it onboards.
 2. Search **"LG webOS Smart TV"**
 3. Enter the TV's IP (find it on the TV: *Settings → Network*)
 4. Accept the permission prompt **on the TV remote** when it appears
-5. HA assigns an entity id — usually `media_player.lg_webos_tv`
+5. HA assigns an entity id, usually `media_player.lg_webos_tv`
 
 > On Docker Desktop for Mac, auto-discovery (SSDP) is broken because the
 > container can't reach the LAN. You **must** add the TV by IP.

@@ -1,9 +1,12 @@
 # Trusty benchmarks
 
-End-to-end `/chat` latency on the Raspberry Pi 5, measured with `bash /tmp/time_chat.sh`. All numbers are seconds per turn, warm planner cache, llama.cpp `--ctx-size 4096 --threads 3 --jinja`.
+Real Gemma 4 E2B IT (`unsloth/gemma-4-E2B-it-GGUF`, `architecture=gemma4`,
+base `google/gemma-4-E2B-it`). End-to-end `/chat` latency on the
+Raspberry Pi 5, measured with `bash /tmp/time_chat.sh`. All numbers are
+seconds per turn, warm planner cache, llama.cpp
+`--ctx-size 4096 --threads 3 --jinja`.
 
-## Gemma 4 E2B IT
-### Compare Gemma Versions Speed
+## Pi 5 latency by quant
 
 | Prompt | Q6_K | Q5_K_M | Q4_K_M | Δ Q4 vs Q6 |
 |---|---:|---:|---:|---:|
@@ -16,25 +19,20 @@ End-to-end `/chat` latency on the Raspberry Pi 5, measured with `bash /tmp/time_
 
 File sizes: Q6_K = 3.9 GB, Q5_K_M = 3.1 GB, Q4_K_M = 2.8 GB.
 
-Routing accuracy on the 32-prompt suite (`/tmp/route_test.sh`, run on Mac): **32 / 32** for all three quants. No planner-prompt edits required for any of them. The five benchmark prompts (one per route category — weather / vacuum / music / local-answer / memory) all returned the correct plan on Pi for Q4_K_M.
+Routing accuracy on the 32-prompt suite (`/tmp/route_test.sh`, run on
+Mac): **32 / 32** for all three quants. The five benchmark prompts (one
+per route category: weather / vacuum / music / local-answer / memory)
+all returned the correct plan on Pi for Q4_K_M.
 
 ## Reproduction
 
-Run on the host being tested (Pi or Mac), after llama-server + uvicorn are warm:
+Run on the host being tested (Pi or Mac), after llama-server + uvicorn
+are warm:
 
 ```bash
 bash /tmp/time_chat.sh
 ```
 
-The script POSTs an initial `"hi"` to warm the planner cache, then times five representative prompts (one per route category) and reports per-prompt and average milliseconds.
-
-## Failed experiments
-
-| Quant | File size | Mac routing (best) | Why it didn't win |
-|---|---:|---|---|
-| `Q3_K_S` | 2.2 GB | 27 / 32 | Memory + weather drop to `local.answer`. |
-| `Q3_K_M` | 2.3 GB | 31 / 32 | `update my location to Dublin` → `weather.live`. |
-| `IQ4_XS` | 2.7 GB | 32 / 32 | Slower on Pi: 101.6 s vs Q4_K_M 59.9 s (ARM I-quant kernels). |
-| `Q4_0` | 2.8 GB | 32 / 32 (2 iterations) | Routing OK with prompt iter, but lost the Pi A/B vs Q4_K_M (67.3 s vs 63.3 s avg, same iterated prompt). `local.answer` decode was 2× slower (118.8 s vs 63 s) — Q4_K_M's ARM NEON kernel beats Q4_0's older one for sustained token generation. |
-| `Q4_K_S` | 2.8 GB | 3 / 32 | Routes everything to `local.answer`. |
-
+The script POSTs an initial `"hi"` to warm the planner cache, then times
+five representative prompts (one per route category) and reports
+per-prompt and average milliseconds.
