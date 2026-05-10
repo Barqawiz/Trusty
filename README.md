@@ -1,6 +1,6 @@
 # Trusty (Gemma)
 
-### Privacy-first local voice assistant for Mac & Raspberry Pi.
+### Privacy-first local voice assistant for Mac & Raspberry Pi 5.
 
 > Wake phrase: **"Hey Trusty"**.
 
@@ -149,28 +149,33 @@ If you hit memory pressure on Pi 8 GB, these changes save ~650 MB with zero qual
 | `--parallel 1 --n-predict 256` in `scripts/run_llama_server.sh` | ~150 MB | none |
 | Skip SearXNG container in `docker-compose.yml` | ~100 MB | none if you don't use search |
 
-### Gemma quantization (`GEMMA_QUANT`)
+### Gemma 4 quantization (`GEMMA_QUANT`)
 
-Pick the GGUF quant that fits your hardware. Set `GEMMA_QUANT` in `.env`
-before running `bash scripts/download_models.sh` and the script fetches
-the matching file. Update `GEMMA_MODEL_PATH` to the matching `*-q*.gguf`.
+Source: `unsloth/gemma-4-E2B-it-GGUF` (real Gemma 4, `architecture=gemma4`,
+base `google/gemma-4-E2B-it`). Set `GEMMA_QUANT` in `.env` then run
+`bash scripts/download_models.sh`. Update `GEMMA_MODEL_PATH` to match.
 
-| Quant | Size on disk | Quality | When to use |
+| Quant | Size | Mac routing (37-q) | When to use |
 |---|---|---|---|
-| `Q8_0` | ~5.0 GB | reference | Mac dev, plenty of RAM |
-| `Q6_K` (default) | ~3.7 GB | near-identical | Pi 5 / production (best balance) |
-| `Q5_K_M` | ~3.2 GB | slight drop | very tight RAM |
+| `Q8_0` | ~4.8 GB | reference | Mac dev, plenty of RAM |
+| `Q6_K` | 4.29 GB | 97 % (Mac default) | Mac / Pi 5 8 GB best quality |
+| `Q5_K_M` | 3.20 GB | n/a | tight RAM, untested |
+| `Q4_K_M` | 2.96 GB | 97 % | Pi alternative |
+| `Q4_K_S` (Pi default) | 2.83 GB | 97 % | Pi 5 production |
+
+Q4_K_S and Q4_K_M tied at 97 % routing on Mac and within ~5 % on Pi
+turn-time; Q4_K_S wins on size (~130 MB lighter, more KV-cache headroom).
 
 **Pair Whisper to match.** Smaller Gemma → smaller Whisper, otherwise STT
 becomes the bottleneck on Pi:
 
 | `GEMMA_QUANT` | Recommended `WHISPER_MODEL_PATH` | STT latency on Pi 5 |
 |---|---|---|
-| `Q8_0` | `ggml-small.en.bin` | ~6–8 s |
-| `Q6_K` / `Q5_K_M` | `ggml-base.en.bin` | ~2–3 s |
+| `Q8_0` / `Q6_K` | `ggml-small.en.bin` | ~6–8 s |
+| `Q4_K_M` / `Q4_K_S` | `ggml-base.en.bin` | ~2–3 s |
 
 `base.en` is slightly less accent-tolerant but ~3× faster on CPU. The Pi
-preset (Q6_K + base.en) is the right default for production voice use.
+preset (Q4_K_S + base.en) is the right default for production voice use.
 
 ## Speech to text (`STT_BACKEND`)
 

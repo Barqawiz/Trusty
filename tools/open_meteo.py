@@ -43,7 +43,8 @@ WEATHER_CODES = {
 
 
 async def _geocode(location: str) -> dict[str, Any] | None:
-    async with httpx.AsyncClient(timeout=8.0) as c:
+    # 12 s tolerates occasional open-meteo CDN cold edges.
+    async with httpx.AsyncClient(timeout=12.0) as c:
         r = await c.get(GEOCODE_URL, params={"name": location, "count": 1})
         r.raise_for_status()
         results = r.json().get("results") or []
@@ -62,10 +63,21 @@ async def _forecast(lat: float, lon: float, action: str) -> dict[str, Any]:
         "timezone": "auto",
         "forecast_days": 1,
     }
-    async with httpx.AsyncClient(timeout=8.0) as c:
-        r = await c.get(FORECAST_URL, params=params)
-        r.raise_for_status()
-        return r.json()
+    # Forecast endpoint sometimes takes 5-12 s; one retry on TimeoutException
+    # avoids surfacing transient slowness as "couldn't reach weather service".
+    last_err: Exception | None = None
+    for attempt in (1, 2):
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as c:
+                r = await c.get(FORECAST_URL, params=params)
+                r.raise_for_status()
+                return r.json()
+        except (httpx.TimeoutException, httpx.ReadError) as e:
+            last_err = e
+            log.warning("forecast attempt %d/2 slow: %s", attempt, type(e).__name__)
+            if attempt == 2:
+                raise
+    raise last_err if last_err else RuntimeError("forecast retry loop exited unexpectedly")
 
 
 def register(registry: ToolRegistry, settings: Settings) -> None:
@@ -127,9 +139,11 @@ def register(registry: ToolRegistry, settings: Settings) -> None:
                 speak=speak,
             )
         except httpx.HTTPError as e:
-            log.warning("weather fetch failed: %s", e)
+            # ReadTimeout stringifies as "" — capture the type for actionable logs.
+            err = f"{type(e).__name__}: {e}".rstrip(": ")
+            log.warning("weather fetch failed: %s", err)
             return ToolResult(
-                ok=False, error=str(e), speak="I had trouble reaching the weather service."
+                ok=False, error=err, speak="I had trouble reaching the weather service."
             )
 
     registry.register("weather.live", handler)

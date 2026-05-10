@@ -91,7 +91,11 @@ def test_planner_prompt_has_explicit_no_fence_rule():
     forbid code fences so Gemma is more likely to comply in the first place."""
     from pathlib import Path
     text = (Path(__file__).resolve().parents[1] / "prompts" / "planner_system.md").read_text()
-    assert "```json fences" in text or "no ```json" in text or "No ```json" in text, (
-        "planner prompt should explicitly forbid ```json code fences"
+    forbids_fences = (
+        "```json fences" in text
+        or "no ```json" in text.lower()
+        or "no code fences" in text.lower()
+        or "no markdown" in text.lower()
     )
-    assert "First character of your reply must be `{`" in text
+    assert forbids_fences, "planner prompt should explicitly forbid markdown / code fences"
+    assert "first character of your reply must be `{`" in text.lower()

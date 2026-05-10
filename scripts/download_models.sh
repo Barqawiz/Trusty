@@ -144,19 +144,15 @@ else
 fi
 
 # ---------- Gemma 4 E2B IT GGUF ----------
-# Quant is configurable. Default Q6_K is a good RAM/quality trade-off for the
-# Pi 5 — about 25 % smaller and meaningfully faster than Q8_0 with negligible
-# quality loss for short voice replies. Override with GEMMA_QUANT in .env.
-# Allowed values (we never go below Q4_K_M):
-#   Q8_0 | Q6_K | Q5_K_M | Q4_K_M
-# Q4_K_M is the Pi-friendly pick (~2.8 GB on disk) with a modest quality
-# drop vs Q6_K. All quants come from the same unsloth GGUF repo.
+# Real Gemma 4 (arch=gemma4) from unsloth (authorized). Defaults: Mac=Q6_K, Pi=Q4_K_S.
+# Override GEMMA_QUANT (Q8_0|Q6_K|Q5_K_M|Q4_K_M|Q4_K_S) or GEMMA_HF_REPO in .env.
 GEMMA_QUANT="${GEMMA_QUANT:-Q6_K}"
 case "$GEMMA_QUANT" in
-  Q8_0|Q6_K|Q5_K_M|Q4_K_M) ;;
-  *) red "Unsupported GEMMA_QUANT=$GEMMA_QUANT (allowed: Q8_0, Q6_K, Q5_K_M, Q4_K_M)"; exit 1 ;;
+  Q8_0|Q6_K|Q5_K_M|Q4_K_M|Q4_K_S) ;;
+  *) red "Unsupported GEMMA_QUANT=$GEMMA_QUANT (allowed: Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q4_K_S)"; exit 1 ;;
 esac
-bold "==> Gemma 4 E2B IT GGUF (quant=$GEMMA_QUANT)"
+GEMMA_HF_REPO="${GEMMA_HF_REPO:-unsloth/gemma-4-E2B-it-GGUF}"
+bold "==> Gemma 4 E2B IT GGUF (quant=$GEMMA_QUANT, repo=$GEMMA_HF_REPO)"
 # Lower-case quant for the local file name to keep paths predictable.
 GEMMA_QUANT_LC=$(printf '%s' "$GEMMA_QUANT" | tr '[:upper:]' '[:lower:]')
 GEMMA_TARGET="models/gemma/gemma-4-e2b-it-${GEMMA_QUANT_LC}.gguf"
@@ -167,13 +163,12 @@ else
     red "HF_TOKEN is empty in .env — cannot fetch Gemma."
     exit 1
   fi
-  # unsloth's repo carries every standard quant (Q4 / Q5 / Q6 / Q8); ggml-org
-  # only ships Q8_0. Same model weights, different packager.
-  HF_REPO="unsloth/gemma-3n-E2B-it-GGUF"
-  GEMMA_FILE="gemma-3n-E2B-it-${GEMMA_QUANT}.gguf"
-  bold "  fetching $HF_REPO/$GEMMA_FILE  (cli: $HF_BIN)"
+  # Upstream filename is mixed-case (gemma-4-E2B-it-Q6_K.gguf). We rename
+  # to all-lowercase locally so paths stay predictable + match existing .env.
+  GEMMA_FILE="gemma-4-E2B-it-${GEMMA_QUANT}.gguf"
+  bold "  fetching $GEMMA_HF_REPO/$GEMMA_FILE  (cli: $HF_BIN)"
   set +e
-  HF_OUTPUT=$("$HF_BIN" download "$HF_REPO" "$GEMMA_FILE" \
+  HF_OUTPUT=$("$HF_BIN" download "$GEMMA_HF_REPO" "$GEMMA_FILE" \
     --local-dir models/gemma --token "$HF_TOKEN" 2>&1)
   HF_RC=$?
   set -e
@@ -187,7 +182,7 @@ else
   if [ $HF_RC -ne 0 ]; then
     red ""
     red "Gemma download failed."
-    red "Repo tried: huggingface.co/$HF_REPO"
+    red "Repo tried: huggingface.co/$GEMMA_HF_REPO"
     red "Per the approved plan, the script stops here without a fallback."
     red "Confirm the correct repo and re-run."
     exit $HF_RC

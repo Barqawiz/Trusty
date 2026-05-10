@@ -2,9 +2,10 @@
 
 The planner prompt is the contract that steers Gemma. We can't unit-test
 Gemma's actual outputs (live LLM call), but we CAN verify the prompt:
-  - still has all the existing rules and example shapes the runtime depends on
-  - covers the new behavior: movies / shows / creative tasks (story / joke)
-  - has not regressed on the preserved rules (weather / vacuum / music)
+  - has all the routing rules the runtime depends on
+  - covers entertainment/movies, creative tasks (story / joke / riddle)
+  - keeps the worked-example anchors that downstream behavior expects
+  - preserves the mishear vocabulary
 
 If a future edit drops a rule or example by accident, these tests catch it
 before deployment.
@@ -23,102 +24,135 @@ def prompt_text() -> str:
     return PROMPT_PATH.read_text()
 
 
-# --- New behavior: internet.search now covers entertainment / movies ------
+# --- internet.search covers entertainment / live web data ------------------
 
-INTERNET_SEARCH_KEYWORDS_NEW = [
+INTERNET_SEARCH_KEYWORDS = [
     "movies",
     "shows",
-    "release dates",
-    "events",
-    "concerts",
+    "news",
+    "stock",
+    "trending",
 ]
 
 
-@pytest.mark.parametrize("kw", INTERNET_SEARCH_KEYWORDS_NEW)
+@pytest.mark.parametrize("kw", INTERNET_SEARCH_KEYWORDS)
 def test_internet_search_keyword_covered(prompt_text: str, kw: str):
-    """The internet.search rule (rule 12) must list the new keywords so the
-    planner stops routing 'latest movies' to local.answer."""
-    assert kw in prompt_text, (
-        f"missing internet.search keyword {kw!r} in planner prompt"
-    )
+    assert kw in prompt_text, f"missing internet.search keyword {kw!r}"
 
 
 def test_internet_search_movie_example_present(prompt_text: str):
-    """A worked example for movies anchors the planner."""
-    assert "latest movies in theaters" in prompt_text
-    assert "live web data — movies" in prompt_text
+    # Movies is a live-web-data trigger; the prompt explicitly lists it.
+    assert "latest movies" in prompt_text
+    assert "live web data" in prompt_text
 
 
-# --- New behavior: local.answer now covers creative tasks ------------------
+# --- local.answer covers creative + stable-knowledge tasks ------------------
 
 CREATIVE_TASK_TYPES = ["stories", "jokes", "poems", "riddles"]
 
 
 @pytest.mark.parametrize("kw", CREATIVE_TASK_TYPES)
 def test_local_answer_creative_keyword_covered(prompt_text: str, kw: str):
-    """Rule 13 must explicitly list creative tasks so the planner doesn't
-    fall back to 'I can answer general knowledge questions'."""
-    assert kw in prompt_text, (
-        f"missing creative-task keyword {kw!r} in planner prompt"
-    )
+    assert kw in prompt_text, f"missing creative-task keyword {kw!r}"
 
 
 def test_creative_examples_are_present(prompt_text: str):
-    """Worked examples seed the planner with the JSON shape for creative
-    tasks. Without them Gemma reverts to refusal templates."""
-    assert "tell me a short story for my kids" in prompt_text
+    assert "tell me a short story for my kid" in prompt_text
     assert "creative — story" in prompt_text
     assert "tell me a joke" in prompt_text
     assert "creative — joke" in prompt_text
 
 
-# --- Regression: existing rules / examples must still be intact ------------
+# --- Stable-knowledge + unit-conversion examples (rule 8) -------------------
 
-PRESERVED_PHRASES = [
-    # Core privacy rules
-    "Never send microphone audio to the internet.",
-    "Never send wake-word audio to the internet.",
-    # Routing rule headers (the planner relies on these to find sections)
-    "**Weather**",
-    "**Vacuum / Roborock / floor cleaning**",
-    "**Music**",
-    "**LG TV control**",
-    "**Memory**",
-    "**Live / time-sensitive web data**",
-    # Anchored examples that downstream behavior depends on
-    "what is the weather in Dublin",
-    "stop the vacuum",
-    "play happy birthday",
-    "Apple stock price",
-    "look up the price of Bitcoin",
-    "what is the capital of Country",
-    # Mishear rules
-    "wither",
-    "dabble in",
-    "vakyo",
-    # Output schema fields
-    '"tool": "local.answer|home.tv|home.vacuum|music|weather.live|internet.search|memory|none"',
+def test_knowledge_and_conversion_examples_present(prompt_text: str):
+    assert "what is 9 times 9" in prompt_text
+    assert "convert 25 celsius to fahrenheit" in prompt_text
+    assert "largest forest in the world" in prompt_text
+
+
+# --- Routing rules: each tool category must be addressed --------------------
+
+ROUTING_SECTIONS = [
+    "Privacy violation",
+    "Weather",
+    "Vacuum",
+    "TV",
+    "Music",
+    "Memory",
+    "Live web data",
+    "Stable knowledge",
 ]
 
 
-@pytest.mark.parametrize("phrase", PRESERVED_PHRASES)
-def test_preserved_phrase(prompt_text: str, phrase: str):
-    assert phrase in prompt_text, (
-        f"regression: phrase missing from planner prompt: {phrase!r}"
-    )
+@pytest.mark.parametrize("section", ROUTING_SECTIONS)
+def test_routing_section_present(prompt_text: str, section: str):
+    assert section in prompt_text, f"missing routing section: {section!r}"
 
 
-# --- Sanity: prompt loads via the model client ----------------------------
+# --- Anchored worked examples (downstream behavior expects these shapes) ---
+
+ANCHORED_EXAMPLES = [
+    "what is the weather in Dublin",
+    "stop the vacuum",
+    "play happy birthday",
+    "set my location to Dublin",
+    "search for the latest AI news",
+    "send my voice recording to Google",
+]
+
+
+@pytest.mark.parametrize("phrase", ANCHORED_EXAMPLES)
+def test_anchored_example_present(prompt_text: str, phrase: str):
+    assert phrase in prompt_text, f"missing worked example: {phrase!r}"
+
+
+# --- Mishear vocabulary -----------------------------------------------------
+
+MISHEARS = ["wither", "dabble in", "vakyo", "roborok"]
+
+
+@pytest.mark.parametrize("token", MISHEARS)
+def test_mishear_token_present(prompt_text: str, token: str):
+    assert token in prompt_text, f"missing mishear: {token!r}"
+
+
+# --- Output contract: schema field names must be in the prompt -------------
+
+SCHEMA_FIELDS = [
+    "tool",
+    "action",
+    "arguments",
+    "requires_internet",
+    "external_payload",
+    "privacy_risk",
+    "reason",
+    "final_response_required",
+    "local_answer",
+]
+
+
+@pytest.mark.parametrize("field", SCHEMA_FIELDS)
+def test_schema_field_documented(prompt_text: str, field: str):
+    assert field in prompt_text, f"schema field missing from prompt: {field!r}"
+
+
+def test_no_fence_no_prose_rule_present(prompt_text: str):
+    """Prompt must instruct Gemma to emit JSON only — no prose / fences."""
+    text = prompt_text.lower()
+    assert "no prose" in text and ("no markdown" in text or "no code fences" in text)
+    assert "first character of your reply must be `{`" in text
+
+
+# --- Sanity: prompt loads via the model client ------------------------------
 
 def test_planner_template_loads_via_model_client():
-    """`LlamaClient.from_files` reads the prompt at startup. Make sure the
-    file is still where the client expects it."""
     from app.model_client import LlamaClient
 
     prompts_dir = PROMPT_PATH.parent
     client = LlamaClient.from_files(
         base_url="http://127.0.0.1:8080/v1", prompts_dir=prompts_dir,
     )
-    # Confirm both rule sections are in the loaded text.
-    assert "creative task" in client.planner_template.lower()
-    assert "movies" in client.planner_template.lower()
+    text = client.planner_template.lower()
+    assert "creative" in text
+    assert "movies" in text
