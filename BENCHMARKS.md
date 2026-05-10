@@ -17,7 +17,7 @@ seconds per turn, warm planner cache, llama.cpp
 | `update my location to Berlin` | 72.1 s | 66.8 s | 59.7 s | −12.4 s (−17.2%) |
 | **average per turn** | **77.2 s** | **69.4 s** | **59.9 s** | **−17.3 s (−22.4%)** |
 
-File sizes: Q6_K = 3.9 GB, Q5_K_M = 3.1 GB, Q4_K_M = 2.8 GB.
+File sizes: Q6_K = 4.2 GB, Q5_K_M = 3.3 GB, Q4_K_M = 2.9 GB.
 
 Routing accuracy on the 32-prompt suite (`/tmp/route_test.sh`, run on
 Mac): **32 / 32** for all three quants. The five benchmark prompts (one
