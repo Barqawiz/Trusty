@@ -16,7 +16,7 @@ Most offline assistants (Rhasspy, OpenVoiceOS, Home Assistant Assist) match voic
 - **Local STT** via Moonshine ONNX (default, ~3× faster than whisper.cpp) or whisper.cpp switch via `STT_BACKEND` in `.env`
 - **Local TTS** via Kokoro ONNX (natural voice, ~80 MB int8 model)
 - **Local wake word** via openWakeWord
-- **LG webOS TV control** through Home Assistant
+- **Vacuum control** through Home Assistant
 - **Music** via Music Assistant + a local folder
 - **Live weather** via Open-Meteo (location text only leaves the device)
 - **Web search** via SearXNG (query text only leaves the device)
@@ -80,7 +80,7 @@ tmux kill-session -t trusty
 Hey Trusty, what is the capital of Jordan?     → local
 Hey Trusty, will it rain in Dublin today?      → weather (location only)
 Hey Trusty, search the latest Raspberry Pi news      → search (text only)
-Hey Trusty, open YouTube on the TV              → LG via HA
+Hey Trusty, clean the living room                    → Vacuum via HA
 Hey Trusty, play music from my offline folder   → local files
 Hey Trusty, send my microphone audio online    → blocked
 ```
@@ -90,7 +90,7 @@ Hey Trusty, send my microphone audio online    → blocked
 | Tool             | Internet | Allowed payload    | Audio leaves? |
 |------------------|----------|--------------------|---------------|
 | local.answer     | no       | none               | no            |
-| home.tv          | no (LAN) | none               | no            |
+| home.vacuum      | no (LAN) | none               | no            |
 | music            | no       | none               | no            |
 | weather.live     | yes      | location text only | no            |
 | internet.search  | yes      | query text only    | no            |
@@ -125,7 +125,7 @@ day-to-day use.
 - Raspberry Pi 5 (**8 GB RAM**)
 - USB or 3.5 mm speaker
 - USB microphone
-- Optional: HDMI display, LG webOS TV on the same LAN, Roborock vacuum
+- Optional: HDMI display, Vacuum on the same LAN
 
 You can run Trusty on a Raspberry Pi (**4 GB RAM**) by offloading Home Assistant and Music Assistant to other devices on your local network, keeping the Pi dedicated to Gemma (via llama.cpp), speech recognition, and audio. The Pi can still reach home and music services using the IP addresses.
 
@@ -134,7 +134,7 @@ Also runs on macOS (Apple Silicon / Intel) see *Quick start (Mac dev)* above
 ## Documentation
 
 - [`RUNBOOK.md`](RUNBOOK.md)  commands only, Mac + Pi
-- [`TV_SETUP.md`](TV_SETUP.md)  pair the LG webOS TV with Home Assistant
+- [`VACUUM_SETUP.md`](VACUUM_SETUP.md)  pair a vacuum with Home Assistant
 - [`WAKE_WORD.md`](WAKE_WORD.md)  change the wake word, including custom training
 
 ## Memory tips for low-RAM devices

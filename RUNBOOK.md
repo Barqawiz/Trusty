@@ -36,7 +36,7 @@ bash scripts/run_voice.sh
 
 ### Voice on Mac
 
-> **Wake word for the MVP: "Hey Jarvis"** (openWakeWord built-in, rebadged
+> **Wake word for the MVP: "Hey Trusty"** (openWakeWord built-in, rebadged
 > as "Hey Trusty" in the UI). Custom `hey_trusty.tflite` training is a
 > separate step, see [`WAKE_WORD.md`](WAKE_WORD.md).
 
@@ -86,17 +86,17 @@ You should see:
 warming up Kokoro TTS...
 
   Trusty voice loop ready.
-  Wake word: Hey Jarvis  (model: hey_jarvis, threshold: 0.50)
+  Wake word: Hey Trusty  (model: hey_trusty, threshold: 0.50)
   Trusty API: http://127.0.0.1:8090
-  Say 'hey jarvis, ...' then your command. Ctrl-C to quit.
+  Say 'hey trusty, ...' then your command. Ctrl-C to quit.
 ```
 
 Then say:
 
 ```
-Hey Jarvis, what is the capital of Jordan?
-Hey Jarvis, will it rain in Dublin today?
-Hey Jarvis, open YouTube on the TV.
+Hey trusty, what is the capital of Jordan?
+Hey trusty, will it rain in Dublin today?
+Hey trusty, stop the vacuum.
 ```
 
 Each turn prints (in colour):
@@ -149,7 +149,7 @@ curl -sX POST http://127.0.0.1:8090/chat \
 | ------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | Eyes    | [http://localhost:8090/eyes/](http://localhost:8090/eyes/)   | Animated eye + status caption + privacy chip. Display only, does not listen.                         |
 | Admin   | [http://localhost:8090/admin/](http://localhost:8090/admin/) | Mode toggle (online/offline), Pause Trusty switch, service health, quick test, ledger, live activity. |
-| HA      | [http://localhost:8123](http://localhost:8123)               | Home Assistant, pair the LG TV here.                                                                 |
+| HA      | [http://localhost:8123](http://localhost:8123)               | Home Assistant, pair the Roborock vacuum here.                                                       |
 | MA      | [http://localhost:8095](http://localhost:8095)               | Music Assistant.                                                                                      |
 | SearXNG | [http://localhost:8088](http://localhost:8088)               | Local web search.                                                                                     |
 
@@ -168,11 +168,14 @@ docker compose down
 
 ---
 
-## Home Assistant + LG TV setup (one-time)
+## Home Assistant + Roborock vacuum setup (one-time)
 
-Trusty's `home.tv` tool calls Home Assistant. Until you pair the TV and
-generate a token you'll see "There was an authorization error" on TV
-commands. Both work the same on Mac and Pi.
+Trusty's `home.vacuum` tool calls Home Assistant. Until you pair the
+vacuum and generate a token you'll see "There was an authorization
+error" on vacuum commands. Both work the same on Mac and Pi.
+
+Full walk-through with screenshots: [`VACUUM_SETUP.md`](VACUUM_SETUP.md).
+Quick version below.
 
 ### 1. Open Home Assistant
 
@@ -183,18 +186,14 @@ http://raspberrypi.local:8123   # Pi
 
 First load takes ~1 min. Create the admin account when it onboards.
 
-### 2. Add the LG webOS TV
+### 2. Add the Roborock integration
 
 1. *Settings → Devices & Services → Add Integration*
-2. Search **"LG webOS Smart TV"**
-3. Enter the TV's IP (find it on the TV: *Settings → Network*)
-4. Accept the permission prompt **on the TV remote** when it appears
-5. HA assigns an entity id, usually `media_player.lg_webos_tv`
-
-> On Docker Desktop for Mac, auto-discovery (SSDP) is broken because the
-> container can't reach the LAN. You **must** add the TV by IP.
-> On the Pi, switch HA + Music Assistant to `network_mode: host` in
-> `docker-compose.yml` and SSDP works automatically.
+2. Search **"Roborock"**
+3. Enter your Roborock account email, click **Submit**
+4. Paste the 6-digit verification code sent to your email
+5. HA discovers each vacuum on the account and assigns an entity id,
+   e.g. `vacuum.s6_pure`
 
 ### 3. Generate a Long-Lived Access Token
 
@@ -207,7 +206,7 @@ First load takes ~1 min. Create the admin account when it onboards.
 ```env
 HA_URL=http://localhost:8123
 HA_TOKEN=<paste the token here>
-LG_TV_ENTITY_ID=media_player.lg_webos_tv   # adjust if HA used a suffix
+VACUUM_ENTITY_ID=vacuum.s6_pure   # adjust to whatever HA gave you
 ```
 
 Restart Trusty:
@@ -219,8 +218,9 @@ bash scripts/run_trusty.sh
 
 ### 5. Verify
 
-In the Admin UI's **Quick test**, send: *"Open YouTube on the TV."*
-Expected: TV switches to YouTube, reply is "Opening YouTube on the TV."
+In the Admin UI's **Quick test**, send: *"Stop the vacuum."*
+Expected: vacuum heads back to its dock, reply is "Sending the vacuum
+back to its dock."
 
 If you still get an authorization error: `HA_TOKEN` is wrong or expired.
 Generate a fresh one and retry.
@@ -258,7 +258,7 @@ ssh pi@raspberrypi.local
 cd /home/pi/trusty
 bash scripts/setup_pi.sh
 cp .env.example .env
-nano .env                           # set TRUSTY_HOME=/home/pi/trusty, HA_TOKEN, LG_TV_ENTITY_ID
+nano .env                           # set TRUSTY_HOME=/home/pi/trusty, HA_TOKEN, VACUUM_ENTITY_ID
 ```
 
 ### Docker stack on the Pi
@@ -271,14 +271,16 @@ sudo usermod -aG docker pi
 docker compose up -d
 ```
 
-### Pair LG TV in HA
+### Pair Roborock vacuum in HA
 
 ```
 Open http://raspberrypi.local:8123
-Settings → Devices & Services → Add Integration → "LG webOS Smart TV"
-Accept the prompt on the TV remote.
+Settings → Devices & Services → Add Integration → "Roborock"
+Enter your Roborock account email, then the 6-digit code sent to your inbox.
 Profile → Long-Lived Access Tokens → Create → paste into .env as HA_TOKEN
 ```
+
+Full walk-through: [`VACUUM_SETUP.md`](VACUUM_SETUP.md).
 
 ### Run as services
 
@@ -300,7 +302,7 @@ Admin:  http://raspberrypi.local:8090/admin/
 
 ```
 "Hey Trusty, what is the capital of Jordan?"
-"Hey Trusty, open YouTube on the TV."
+"Hey Trusty, stop the vacuum."
 "Hey Trusty, will it rain in Dublin today?"
 ```
 
