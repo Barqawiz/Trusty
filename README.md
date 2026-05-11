@@ -34,6 +34,13 @@ We used Antigravity and Gemini for development.
 
 ## Quick start (Mac dev)
 
+> [!IMPORTANT]
+> **Before the first download** (one-time, so `download_models.sh` does not fail with a 401):
+> 1. Create a free Hugging Face account.
+> 2. Accept the Gemma licence at <https://huggingface.co/google/gemma-4-E2B-it>
+> 3. Create a read token at <https://huggingface.co/settings/tokens>
+> 4. `cp .env.example .env` and paste the token into `HF_TOKEN=…`
+
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
