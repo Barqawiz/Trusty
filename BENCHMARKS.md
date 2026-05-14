@@ -6,15 +6,11 @@ End-to-end `/chat` latency on the Raspberry Pi 5, measured with the FastAPI runn
 
 The Trusty-tuned build pairs a Q4_K_S GGUF with a short 1.5 KB planner prompt (the un-tuned build needs an 11 KB prompt to route correctly). The combination is the headline win.
 
-| Prompt | Un-tuned Q4_K_S | **Tuned Q4_K_S** (deploy) | **Tuned Q3_K_M** (fallback) |
-|---|---:|---:|---:|
-| `what is the capital of France` | 317.2 s ❌ JSON fallback | **16.6 s** ✓ | **16.8 s** ✓ |
-| `what is 12 times 7` | 256.2 s ✓ | **16.0 s** ✓ | **16.6 s** ✓ |
-| `how does a camera work` | 259.4 s ✓ | **20.1 s** ✓ | **17.0 s** ✓ |
-| **average per turn** | **277.6 s** | **17.6 s** | **16.8 s** |
-| **speedup vs un-tuned** | 1.0× | **15.8×** | **16.6×** |
-| **time saved / turn** | (baseline) | **−260 s** | **−261 s** |
-| JSON-valid planner outputs | 50 % (2 / 4) | **100 %** (4 / 4) | 75 % (3 / 4, warmup parse fail) |
+| Build | Planner prompt | avg / turn | speedup | JSON-valid |
+|---|---|---:|---:|---:|
+| Un-tuned Q4_K_S | long, 11 KB | ~100 s | 1.0× | 50 % |
+| **Tuned Q4_K_S** (deploy) | short, 1.5 KB | **17.6 s** | **5.7×** | **100 %** |
+| Tuned Q3_K_M (fallback) | short, 1.5 KB | 16.8 s | 6.0× | 75 % (warmup parse fail) |
 
 File sizes: Tuned Q4_K_S = 3.1 GB, Tuned Q3_K_M = 3.0 GB. Both ship with the short `prompts/planner_system.md` (1.5 KB); the orchestrator auto-selects it because the filename contains "trusty".
 

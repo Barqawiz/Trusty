@@ -78,7 +78,7 @@ ssh <user>@<pi-host> 'bash ~/trusty/boot.sh'
 `bash scripts/download_models.sh` pulls by default. The orchestrator
 sees the `trusty` marker in the filename and auto-selects the short
 planner prompt (`prompts/planner_system.md`, ~1.5 KB). End-to-end
-warm turns land at ~17 s on Pi 5 vs ~277 s for un-tuned Gemma with
+warm turns land at ~17 s on Pi 5 vs ~100 s for un-tuned Gemma with
 the long 11 KB prompt. Full numbers in [`BENCHMARKS.md`](BENCHMARKS.md).
 
 Reattach to watch logs / interact:
@@ -159,81 +159,23 @@ Also runs on macOS (Apple Silicon / Intel) see *Quick start (Mac dev)* above
 - [`RUNBOOK.md`](RUNBOOK.md)  commands only, Mac + Pi
 - [`VACUUM_SETUP.md`](VACUUM_SETUP.md)  pair a vacuum with Home Assistant
 - [`WAKE_WORD.md`](WAKE_WORD.md)  change the wake word, including custom training
+- [Wiki](https://github.com/Barqawiz/Trusty/wiki)  Mac, Pi, and Linux setup guides
 
 ## Memory tips for low-RAM devices
 
-If you hit memory pressure on Pi 8 GB, these changes save ~650 MB with zero quality impact:
+If you hit memory pressure on Pi 8 GB, three tweaks save ~650 MB with no quality impact:
 
-| Change | RAM saved | Risk |
-|---|---|---|
-| `--ctx-size 1024` in `scripts/run_llama_server.sh` | ~400 MB | none |
-| `--parallel 1 --n-predict 256` in `scripts/run_llama_server.sh` | ~150 MB | none |
-| Skip SearXNG container in `docker-compose.yml` | ~100 MB | none if you don't use search |
+| Change | RAM saved |
+|---|---:|
+| `--ctx-size 1024` in `scripts/run_llama_server.sh` | ~400 MB |
+| `--parallel 1 --n-predict 256` in `scripts/run_llama_server.sh` | ~150 MB |
+| Skip SearXNG container in `docker-compose.yml` | ~100 MB |
 
-### Which Gemma the download script fetches (`GEMMA_VARIANT`)
+## Tuned vs un-tuned Gemma
 
-`bash scripts/download_models.sh` reads two env vars from `.env`:
+By default [`scripts/download_models.sh`](scripts/download_models.sh) pulls the [Trusty-tuned Q4_K_S](https://huggingface.co/barqawiz/trusty-gemma-4-e2b-home-assistant) (3.1 GB, public, no token). Recommended for **both Mac and Pi**.
 
-| Var | Default | Effect |
-|---|---|---|
-| `GEMMA_VARIANT` | `tuned` | `tuned` pulls the Trusty-tuned Q4_K_S from [`barqawiz/trusty-gemma-4-e2b-home-assistant`](https://huggingface.co/barqawiz/trusty-gemma-4-e2b-home-assistant) (public, no `HF_TOKEN`). `untuned` pulls the original Google Gemma from `unsloth/gemma-3n-E2B-it-GGUF` (gated, needs `HF_TOKEN`). |
-| `GEMMA_QUANT` | `Q6_K` | Only consulted when `GEMMA_VARIANT=untuned`. Allowed: `Q8_0` / `Q6_K` / `Q5_K_M` / `Q4_K_M`. |
-
-So with all defaults you get one file:
-
-```
-models/gemma/trusty-gemma-4-e2b-tuned-q4_k_s.gguf      # 3.1 GB, tuned
-```
-
-This is what's recommended for **both Mac and Pi**. The orchestrator
-detects `trusty` in the filename and loads the short 1.5 KB planner
-prompt automatically; warm-turn latency on Pi 5 is ~17 s vs ~277 s for
-un-tuned Gemma with the long 11 KB prompt (see
-[`BENCHMARKS.md`](BENCHMARKS.md)).
-
-#### Tuned vs original Gemma: which to use
-
-- **On a Mac or any other computer with plenty of RAM**: you can switch
-  to the original Google Gemma weights; they route well at higher quants
-  and are useful for A/B comparison.
-- **On a Pi 5 or other small device**: stay on the Trusty-tuned default.
-  The short planner prompt and Q4_K_S quant make the difference between
-  ~17 s and ~277 s per turn.
-
-To opt into the un-tuned baseline, set these in `.env` and re-run the
-download script:
-
-```bash
-GEMMA_VARIANT=untuned
-GEMMA_QUANT=Q6_K                                    # or Q8_0 / Q5_K_M / Q4_K_M
-HF_TOKEN=hf_...                                     # required for gated Gemma
-GEMMA_MODEL_PATH=models/gemma/gemma-4-e2b-it-q6_k.gguf
-```
-
-```bash
-bash scripts/download_models.sh
-```
-
-Un-tuned quant trade-offs:
-
-| Quant | Size | Mac routing (37-q) | When to use |
-|---|---|---|---|
-| `Q8_0` | ~4.8 GB | reference | Mac dev, plenty of RAM |
-| `Q6_K` (default) | 4.29 GB | 97 % | Mac / desktop A/B baseline |
-| `Q5_K_M` | 3.20 GB | n/a | tight RAM, untested |
-| `Q4_K_M` | 2.96 GB | 97 % | Mac alternative |
-| `Q4_K_S` (un-tuned) | 2.83 GB | 3 % | broken un-tuned; use the tuned build above |
-
-**Pair Whisper to match.** Smaller Gemma → smaller Whisper, otherwise STT
-becomes the bottleneck on Pi:
-
-| `GEMMA_QUANT` | Recommended `WHISPER_MODEL_PATH` | STT latency on Pi 5 |
-|---|---|---|
-| `Q8_0` / `Q6_K` | `ggml-small.en.bin` | ~6–8 s |
-| `Q4_K_M` / `Q4_K_S` | `ggml-base.en.bin` | ~2–3 s |
-
-`base.en` is slightly less accent-tolerant but ~3× faster on CPU. The Pi
-preset (Q4_K_S + base.en) is the right default for production voice use.
+To A/B against the original Google Gemma, set `GEMMA_VARIANT=untuned` and `HF_TOKEN=hf_...` in `.env` (the un-tuned repo is [gated](https://huggingface.co/google/gemma-4-E2B-it) and needs a [read token](https://huggingface.co/settings/tokens)). Full quant trade-offs and Whisper-pairing recommendations are in the [wiki](https://github.com/Barqawiz/Trusty/wiki).
 
 ## Speech to text (`STT_BACKEND`)
 
