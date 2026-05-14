@@ -221,7 +221,7 @@ def register(registry: ToolRegistry, settings: Settings) -> None:
                 speak="My local search service isn't responding.",
             )
 
-        results = (payload.get("results") or [])[:5]
+        results = (payload.get("results") or [])[:_PAGES_TO_FETCH]
         trimmed: list[dict[str, Any]] = [
             {
                 "title": item.get("title"),
