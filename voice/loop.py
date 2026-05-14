@@ -58,16 +58,80 @@ _HAS_LETTER = re.compile(r"[a-zA-Z]")
 _MIN_TRANSCRIPT_CHARS = 2  # "Hi" / "OK" / "Yes" — let the orchestrator decide
 
 # WAKEWORD_MODE=OFF only — gate that decides whether to POST a chunk to /chat.
-# Permissive on common Whisper/Moonshine mishears of "trusty" (rusty/trustly).
+# Permissive on common Whisper/Moonshine mishears of "trusty" (rusty/trustly,
+# tracey/tracie/tracy, trissie/tristey, dressy). False positives are cheap (the
+# orchestrator's intent layer / planner just discards uninterpretable text);
+# false negatives lock the user out of the assistant entirely.
 _WAKE_TRIGGER_RE = re.compile(
     r"\b("
     r"trust\w*|rusty|trustly|"
+    r"trace?y|tracie|trissie|tristey|tristy|trusti|dressy|"
     r"wake\s*(?:up|me)?|"
     r"good\s+(?:morning|afternoon|evening)|"
     r"hey|hi"
     r")\b",
     re.IGNORECASE,
 )
+
+# Second-chance gate for OFF mode: command-shaped phrases that look like
+# explicit imperatives for one of Trusty's tools. Lets the user issue
+# direct commands ("return to the dock", "play jazz music", "open Netflix")
+# without needing to say "Trusty" first. Only catches recognisable command
+# shapes — passing remarks like "the weather is nice" still get filtered.
+_TOOL_IMPERATIVE_RE = re.compile(
+    r"\b("
+    # vacuum / cleaning
+    r"return\s+(?:to\s+)?(?:the\s+)?(?:dock|home)|"
+    r"return\s+the\s+(?:vacuum|roborock|vakyo|robot)|"
+    r"send\s+(?:the\s+)?(?:vacuum|roborock|vakyo|robot)\s+(?:home|back|to\s+(?:the\s+)?dock)|"
+    r"park\s+(?:the\s+)?(?:vacuum|roborock|vakyo)|"
+    r"dock\s+(?:the\s+)?(?:vacuum|roborock|vakyo)|"
+    r"vacuum\s+(?:the\s+|please)|"
+    r"(?:clean|cleaning|claimed)\s+(?:the\s+)?\w*\s*(?:room|rooms|floor|floors|kitchen|bathroom|bedroom|hallway|office|carpet|house|everywhere)|"
+    r"(?:roborock|vakyo)\s+(?:start|stop|please)|"
+    # 'star' covers a common Whisper mishear of 'start' (dropped trailing t).
+    # Bounded to vacuum/cleaning subjects so 'star wars' stays a non-match.
+    r"(?:start|starts|star)\s+(?:vacuuming|cleaning|(?:(?:a|the)\s+)?(?:vacuum|roborock|vakyo))|"
+    # music — 'play|start|star|begin' all valid kick-off verbs. The genre
+    # alternation downstream prevents 'star wars' / 'start counting' from
+    # passing because they don't include a music keyword.
+    r"(?:play|start|star|begin)\s+(?:music|some\s+\w|a\s+\w|the\s+\w|happy\s+\w|jazz|rock|pop|classical|reggae|blues|country|hip\s+hop|electronic|metal|folk|indie|soul|funk|punk|ambient|lofi|techno|house|disco|salsa|opera|instrumental|acoustic|dance|trance|relaxing|upbeat|sad|happy|calm|chill|romantic|workout|focus|study|morning|evening|me|my)|"
+    r"(?:start|star)\s+(?:the\s+|some\s+)?music|"
+    r"stop\s+(?:the\s+)?(?:music|song|track|playback)|"
+    r"pause\s+(?:the\s+)?music|"
+    r"resume\s+(?:the\s+)?music|"
+    r"next\s+(?:song|track)|skip\s+(?:song|track)|"
+    # TV
+    r"turn\s+(?:on|off)\s+(?:the\s+)?(?:tv|television)|"
+    r"(?:tv|television)\s+(?:on|off)|"
+    r"open\s+(?:youtube|netflix|spotify|hulu|hbo|disney|prime|max|paramount|peacock|apple\s+tv|bbc)|"
+    r"launch\s+(?:youtube|netflix|spotify|hulu|hbo|disney|prime|max|peacock)|"
+    r"switch\s+to\s+(?:youtube|netflix|spotify|hulu|hbo|disney|prime|max|peacock)|"
+    r"mute\s+(?:the\s+)?(?:tv|television)|"
+    r"volume\s+(?:up|down)|"
+    # weather
+    r"weather\s+(?:in|for|of|at)\s+\w+|"
+    r"temperature\s+(?:in|for|of|at)\s+\w+|"
+    r"forecast\s+(?:for|in)\s+\w+|"
+    r"is\s+it\s+(?:cold|hot|warm|raining|snowing|sunny|cloudy)\s+in\s+\w+|"
+    # search / live data
+    r"search\s+(?:for|online)|look\s+up\s+\w+|google\s+\w+|"
+    r"latest\s+(?:news|movies|shows)|"
+    # creative
+    r"tell\s+me\s+a\s+(?:joke|story|riddle)|give\s+me\s+a\s+(?:joke|story|riddle)|"
+    r"make\s+me\s+laugh|got\s+any\s+jokes?|"
+    # memory
+    r"my\s+name\s+is|call\s+me|"
+    r"(?:update|set|change|save|remember)\s+my\s+location|"
+    r"forget\s+my\s+(?:memory|name)|wipe\s+my\s+preferences|clear\s+my\s+memory"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _should_forward_transcript(text: str) -> bool:
+    """Return True when transcript-scan mode should POST this chunk to /chat."""
+    return bool(_WAKE_TRIGGER_RE.search(text) or _TOOL_IMPERATIVE_RE.search(text))
 
 # ANSI colour codes — disabled if stdout isn't a TTY.
 _TTY = sys.stdout.isatty()
@@ -181,6 +245,23 @@ def _load_wakeword(cfg: dict[str, str]):
     return Model(wakeword_models=refs, **kwargs)
 
 
+# Disfluencies / wake fillers stripped from the front of `text` before the
+# preroll classifier runs. Mirrors the orchestrator's wake-prefix strip so
+# both layers see the same cleaned utterance.
+_PREROLL_PREFIX_STRIP_RE = re.compile(
+    r"^\s*"
+    # Leading article (Whisper sometimes inserts "A" / "An" / "The"
+    # before the wake word). Mirrors the orchestrator strip.
+    r"(?:(?:a|an|the)\s+)?"
+    r"(?:(?:um+|uh+|er+|hmm+|well|so|ok|okay)\s*[,!]?\s+)*"
+    r"(?:(?:hey|hi|yo)\s*[,!]?\s+)?"
+    # Wake vocative + STT mishears (rusty / trustees / tracie / etc).
+    r"(?:(?:trusty|trustees?|trustly|trusti|rusty|trace?y|tracie|trissie|tristey|tristy)\s*[,!]?\s+)?"
+    r"(?:(?:um+|uh+|er+|hmm+|well|so|please)\s*[,!]?\s+)*",
+    re.IGNORECASE,
+)
+
+
 def _preroll_phrase(text: str) -> str | None:
     """Return a short acknowledgement to speak BEFORE the orchestrator runs.
 
@@ -196,7 +277,10 @@ def _preroll_phrase(text: str) -> str | None:
       3. Mood / vibe words — generic acknowledgement.
       4. Transport commands (stop / pause / etc.) — None (already fast).
     """
-    t = text.strip().lower()
+    # Strip leading disfluencies / wake fillers so "Um, start jazz music"
+    # is classified the same way as "start jazz music".
+    cleaned = _PREROLL_PREFIX_STRIP_RE.sub("", text, count=1).lstrip()
+    t = cleaned.strip().lower()
     if not t:
         return None
     # Transport is fast — no pre-roll. Listed first so they short-circuit.
@@ -214,9 +298,13 @@ def _preroll_phrase(text: str) -> str | None:
     if any(p in t for p in ("wake up", "good morning", "i'm back")):
         return None
     # "play X" / "start X" / "put on X" — quote the subject back briefly.
-    for prefix in ("play ", "start ", "put on ", "i want to hear "):
+    # Use `cleaned` (filler-stripped) so the slice index lines up with
+    # the prefix we matched against; otherwise "Um, start jazz music"
+    # would slice from the wrong offset. "star " covers a common
+    # Whisper mishear of "start" (dropped trailing t).
+    for prefix in ("play ", "start ", "star ", "begin ", "put on ", "i want to hear "):
         if t.startswith(prefix):
-            subject = text.strip()[len(prefix):].strip(" ?.!,")
+            subject = cleaned.strip()[len(prefix):].strip(" ?.!,")
             if not subject or len(subject) > 60:
                 return "Looking for that, just a sec."
             return f"Looking for {subject}, just a sec."
@@ -226,7 +314,7 @@ def _preroll_phrase(text: str) -> str | None:
     return None
 
 
-_FAREWELL = "Call me when you want me back."
+_FAREWELL = "Sleeping. Say Hey Trusty to start."
 # Suppress speaking the orchestrator's "I'm asleep" reply while the
 # loop is in its own paused mode — it would talk over music.
 _ASLEEP_PREFIX = "I'm asleep"
@@ -338,8 +426,10 @@ def _handle_turn(
         # Silent re-arm. Don't speak anything — user knows from the terminal.
         print(_dim(f"  (no speech detected — STT={text!r})"), flush=True)
         return (False, {})
-    if require_trigger and not _WAKE_TRIGGER_RE.search(text):
-        # Heard speech but no wake trigger — drop silently.
+    if require_trigger and not _should_forward_transcript(text):
+        # Heard speech but neither a wake trigger nor a tool-imperative
+        # phrase. Drop silently to avoid sending random ambient speech to
+        # the planner.
         print(_dim(f"  (no trigger — discarded: {text!r})"), flush=True)
         return (False, {})
     print(f"  {_green('YOU :')} {text}", flush=True)
@@ -376,6 +466,9 @@ def _handle_turn(
     if not reply.strip():
         log.warning("empty reply from Trusty")
         return (True, plan)
+    tool = plan.get("tool") or "?"
+    action = plan.get("action") or "?"
+    print(_dim(f"  tool: {tool}.{action}"), flush=True)
     print(f"  {_cyan('TRUSTY:')} {reply}\n", flush=True)
     # Skip "I'm asleep" replies while paused so they don't interrupt music.
     # The orchestrator's wake bypass still works — wake-up confirmations
@@ -390,8 +483,9 @@ def _handle_turn(
 
 def _run_transcript_scan(cfg: dict, trusty_url: str) -> int:
     """Main loop for WAKEWORD_MODE=OFF: continuous STT + transcript-scan.
-    Dispatches a chunk only when it contains a trigger word; mirrors the
-    wake-word path's follow-up window, sleep auto-pause, and music auto-pause."""
+    Starts active, so direct commands do not need "Trusty" first. After an
+    explicit sleep or music auto-sleep, it requires a wake/resume trigger
+    before returning to active continuous listening."""
     FOLLOWUP_SILENT_LIMIT = 2
     local_paused = False
     with open_input_stream() as q:
@@ -415,7 +509,7 @@ def _run_transcript_scan(cfg: dict, trusty_url: str) -> int:
                 processed, plan = _handle_turn(
                     cfg, trusty_url, q=q,
                     max_seconds=10.0,
-                    require_trigger=True,
+                    require_trigger=local_paused,
                     local_paused=local_paused,
                 )
             except KeyboardInterrupt:
@@ -444,8 +538,9 @@ def _run_transcript_scan(cfg: dict, trusty_url: str) -> int:
                 local_paused = True
                 triggered_auto_sleep = True
 
-            # Follow-up window — trigger word NOT required for the next
-            # FOLLOWUP_SILENT_LIMIT turns. Mirrors the wake-word path.
+            # Follow-up window — trigger word is required only while locally
+            # paused. In WAKEWORD_MODE=OFF the active state remains active
+            # across turns until the user says sleep.
             silent_in_followup = 0
             while not triggered_auto_sleep and (
                 processed or silent_in_followup < FOLLOWUP_SILENT_LIMIT
@@ -457,7 +552,7 @@ def _run_transcript_scan(cfg: dict, trusty_url: str) -> int:
                         max_seconds=10.0,
                         is_follow_up=True,
                         local_paused=local_paused,
-                        require_trigger=False,  # follow-up: free-form
+                        require_trigger=local_paused,
                     )
                 except KeyboardInterrupt:
                     raise
@@ -482,13 +577,19 @@ def _run_transcript_scan(cfg: dict, trusty_url: str) -> int:
                 else:
                     silent_in_followup += 1
 
-            # Back to scanning for the trigger word.
+            # Back to continuous listening. If local_paused=True the next
+            # iteration still gates on a wake/resume trigger; otherwise
+            # direct commands keep working without the wake name.
             _drain_queue(q)
             last_frame_at = time.time()
-            print(_dim(
-                "  back to transcript-scan listening "
-                "(say 'trusty <command>' to talk again)"
-            ), flush=True)
+            if local_paused:
+                print(_dim(
+                    "  sleeping — say 'wake up' or 'trusty wake up' to resume"
+                ), flush=True)
+            else:
+                print(_dim(
+                    "  continuous listening — direct commands are active"
+                ), flush=True)
 
 
 def run() -> int:
@@ -608,7 +709,7 @@ def run() -> int:
         print(_dim(f"  Say '{wake_phrase}, ...' then your command. Ctrl-C to quit.\n"))
     else:
         print(_dim(
-            f"  Continuous listening — say 'trusty <command>' or 'wake up <command>'. "
+            f"  Continuous listening — say commands directly; say 'go to sleep' to pause. "
             f"Ctrl-C to quit.\n"
         ))
 

@@ -22,8 +22,25 @@ _CODE_FENCE_RE = re.compile(
 
 
 def _strip_code_fence(content: str) -> str:
-    m = _CODE_FENCE_RE.match(content.strip())
-    return m.group(1).strip() if m else content
+    """Strip ```json fences (symmetric, leading-only, or trailing-only)
+    and close up to two unbalanced braces so json.loads can recover."""
+    s = content.strip()
+    m = _CODE_FENCE_RE.match(s)
+    if m:
+        s = m.group(1).strip()
+    else:
+        if s.endswith("```"):
+            s = s[:-3].rstrip()
+        if s.startswith("```"):
+            nl = s.find("\n")
+            s = s[nl + 1:] if nl != -1 else s[3:]
+            s = s.strip()
+    if s.startswith("{"):
+        open_n = s.count("{")
+        close_n = s.count("}")
+        if open_n > close_n and (open_n - close_n) <= 2:
+            s = s + ("}" * (open_n - close_n))
+    return s
 
 
 class LlamaClient:
@@ -48,10 +65,21 @@ class LlamaClient:
         base_url: str,
         prompts_dir: Path,
         timeout: float = 60.0,
+        model_path: str = "",
     ) -> "LlamaClient":
+        """Filename containing "trusty" loads the short tuned prompt;
+        otherwise fall back to planner_system_long.md.bak (un-tuned)."""
+        if "trusty" in str(model_path).lower():
+            planner_path = prompts_dir / "planner_system.md"
+            kind = "short (tuned)"
+        else:
+            long_path = prompts_dir / "planner_system_long.md.bak"
+            planner_path = long_path if long_path.is_file() else prompts_dir / "planner_system.md"
+            kind = "long (un-tuned)" if long_path.is_file() else "short (long fallback missing)"
+        log.info("planner prompt: %s -> %s", kind, planner_path.name)
         return cls(
             base_url=base_url,
-            planner_system_template=(prompts_dir / "planner_system.md").read_text(),
+            planner_system_template=planner_path.read_text(),
             final_answer_template=(prompts_dir / "final_answer_system.md").read_text(),
             timeout=timeout,
         )
@@ -118,13 +146,12 @@ class LlamaClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user_text},
             ],
-            "temperature": 0.1,
+            "temperature": 0.0,
             # A 30+ word story + the JSON envelope can run
             # 150-300 tokens; we keep 1024 as a safety ceiling.
             "max_tokens": 1024,
-            "response_format": {"type": "json_object"},
-            # Gemma 4 has built-in thinking. For the planner we want fast
-            # structured JSON, so we turn it off explicitly.
+            # response_format=json_object removed: it corrupts fine-tune output.
+            # Disable Gemma 4's chain-of-thought for fast structured JSON.
             "chat_template_kwargs": {"enable_thinking": False},
         }
         resp = await self._client.post(f"{self.base_url}/chat/completions", json=body)
@@ -168,7 +195,6 @@ class LlamaClient:
             ],
             "temperature": 0.4,
             "max_tokens": 256,
-            # Final answers go straight to TTS — no value in chain-of-thought.
             "chat_template_kwargs": {"enable_thinking": False},
         }
         resp = await self._client.post(f"{self.base_url}/chat/completions", json=body)

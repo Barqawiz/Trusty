@@ -19,5 +19,5 @@ core_promise:
   home_logs_leave_device: false
   internet_text_only: true
 
-# Banner shown when the model attempts a forbidden payload.
-block_message: "Privacy policy blocked this request."
+# Shown when the validator rejects a plan (real privacy or model-bug slip).
+block_message: "Action blocked by the privacy policy, try rephrasing."

@@ -37,7 +37,7 @@ red()   { printf "\033[31m%s\033[0m\n" "$*" >&2; }
 skip()  { printf "  \033[2mskip\033[0m %s (exists)\n" "$*"; }
 
 # ---------- Whisper models ----------
-# small.en (~466 MB) is the default — much better with accents than base.en.
+# small.en (~466 MB) is the default; much better with accents than base.en.
 # base.en (~141 MB) is downloaded as a fallback for memory-constrained setups.
 bold "==> Whisper models (base.en + small.en)"
 if [ ! -d external/whisper.cpp ]; then
@@ -82,7 +82,7 @@ import sys
 try:
     from openwakeword.utils import download_models
     download_models()
-    print("  ok — openwakeword default models present in package resources")
+    print("  ok: openwakeword default models present in package resources")
 except Exception as e:
     print(f"  warning: {e}", file=sys.stderr)
     sys.exit(0)
@@ -144,37 +144,48 @@ else
 fi
 
 # ---------- Gemma 4 E2B IT GGUF ----------
-# Real Gemma 4 (arch=gemma4) from unsloth (authorized). Defaults: Mac=Q6_K, Pi=Q4_K_S.
-# Override GEMMA_QUANT (Q8_0|Q6_K|Q5_K_M|Q4_K_M|Q4_K_S) or GEMMA_HF_REPO in .env.
-GEMMA_QUANT="${GEMMA_QUANT:-Q6_K}"
-case "$GEMMA_QUANT" in
-  Q8_0|Q6_K|Q5_K_M|Q4_K_M|Q4_K_S) ;;
-  *) red "Unsupported GEMMA_QUANT=$GEMMA_QUANT (allowed: Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q4_K_S)"; exit 1 ;;
-esac
-GEMMA_HF_REPO="${GEMMA_HF_REPO:-unsloth/gemma-4-E2B-it-GGUF}"
-bold "==> Gemma 4 E2B IT GGUF (quant=$GEMMA_QUANT, repo=$GEMMA_HF_REPO)"
-# Lower-case quant for the local file name to keep paths predictable.
-GEMMA_QUANT_LC=$(printf '%s' "$GEMMA_QUANT" | tr '[:upper:]' '[:lower:]')
-GEMMA_TARGET="models/gemma/gemma-4-e2b-it-${GEMMA_QUANT_LC}.gguf"
+# GEMMA_VARIANT=tuned (default): Trusty-tuned Q4_K_S from barqawiz/trusty-gemma-4-e2b-home-assistant.
+# GEMMA_VARIANT=untuned: original Google Gemma (unsloth/gemma-3n-E2B-it-GGUF, needs HF_TOKEN).
+GEMMA_VARIANT="${GEMMA_VARIANT:-tuned}"
+
+if [ "$GEMMA_VARIANT" = "tuned" ]; then
+  HF_REPO="barqawiz/trusty-gemma-4-e2b-home-assistant"
+  GEMMA_FILE="trusty-gemma-4-e2b-tuned-q4_k_s.gguf"
+  GEMMA_TARGET="models/gemma/${GEMMA_FILE}"
+  bold "==> Gemma 4 E2B IT GGUF (Trusty-tuned, Q4_K_S, ~3.1 GB)"
+elif [ "$GEMMA_VARIANT" = "untuned" ]; then
+  GEMMA_QUANT="${GEMMA_QUANT:-Q6_K}"
+  case "$GEMMA_QUANT" in
+    Q8_0|Q6_K|Q5_K_M|Q4_K_M) ;;
+    *) red "Unsupported GEMMA_QUANT=$GEMMA_QUANT (allowed: Q8_0, Q6_K, Q5_K_M, Q4_K_M)"; exit 1 ;;
+  esac
+  HF_REPO="unsloth/gemma-3n-E2B-it-GGUF"
+  GEMMA_FILE="gemma-3n-E2B-it-${GEMMA_QUANT}.gguf"
+  GEMMA_QUANT_LC=$(printf '%s' "$GEMMA_QUANT" | tr '[:upper:]' '[:lower:]')
+  GEMMA_TARGET="models/gemma/gemma-4-e2b-it-${GEMMA_QUANT_LC}.gguf"
+  bold "==> Gemma 4 E2B IT GGUF (un-tuned, ${GEMMA_QUANT})"
+else
+  red "Unsupported GEMMA_VARIANT=$GEMMA_VARIANT (allowed: tuned, untuned)"
+  exit 1
+fi
+
 if [ -f "$GEMMA_TARGET" ]; then
   skip "$GEMMA_TARGET"
 else
-  if [ -z "${HF_TOKEN:-}" ]; then
-    red "HF_TOKEN is empty in .env — cannot fetch Gemma."
-    exit 1
+  bold "  fetching $HF_REPO/$GEMMA_FILE  (cli: $HF_BIN)"
+  HF_ARGS=("$HF_REPO" "$GEMMA_FILE" --local-dir models/gemma)
+  if [ "$GEMMA_VARIANT" = "untuned" ]; then
+    if [ -z "${HF_TOKEN:-}" ]; then
+      red "HF_TOKEN empty in .env: required to fetch the un-tuned Gemma (gated repo)."
+      exit 1
+    fi
+    HF_ARGS+=(--token "$HF_TOKEN")
   fi
-  # Upstream filename is mixed-case (gemma-4-E2B-it-Q6_K.gguf). We rename
-  # to all-lowercase locally so paths stay predictable + match existing .env.
-  GEMMA_FILE="gemma-4-E2B-it-${GEMMA_QUANT}.gguf"
-  bold "  fetching $GEMMA_HF_REPO/$GEMMA_FILE  (cli: $HF_BIN)"
   set +e
-  HF_OUTPUT=$("$HF_BIN" download "$GEMMA_HF_REPO" "$GEMMA_FILE" \
-    --local-dir models/gemma --token "$HF_TOKEN" 2>&1)
+  HF_OUTPUT=$("$HF_BIN" download "${HF_ARGS[@]}" 2>&1)
   HF_RC=$?
   set -e
   echo "$HF_OUTPUT" | tail -20
-  # huggingface_hub >= 1.0 makes `huggingface-cli download` a no-op that exits 0
-  # with a deprecation warning. Detect and treat as hard failure.
   if echo "$HF_OUTPUT" | grep -qi "deprecated and no longer works"; then
     HF_RC=2
     red "huggingface-cli is deprecated; install or alias 'hf' and retry."
@@ -182,12 +193,12 @@ else
   if [ $HF_RC -ne 0 ]; then
     red ""
     red "Gemma download failed."
-    red "Repo tried: huggingface.co/$GEMMA_HF_REPO"
-    red "Per the approved plan, the script stops here without a fallback."
+    red "Repo tried: huggingface.co/$HF_REPO"
     red "Confirm the correct repo and re-run."
     exit $HF_RC
   fi
-  if [ -f "models/gemma/$GEMMA_FILE" ]; then
+  # Tuned download lands at the target filename directly; un-tuned needs rename.
+  if [ "$GEMMA_VARIANT" = "untuned" ] && [ -f "models/gemma/$GEMMA_FILE" ]; then
     mv "models/gemma/$GEMMA_FILE" "$GEMMA_TARGET"
   fi
   if [ -f "$GEMMA_TARGET" ]; then
