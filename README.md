@@ -34,30 +34,59 @@ We used Antigravity and Gemini for development.
 
 ## Quick start (Mac dev)
 
-`bash scripts/download_models.sh` downloads the **Trusty-tuned Q4_K_S Gemma** from [`barqawiz/trusty-gemma-4-e2b-home-assistant`](https://huggingface.co/barqawiz/trusty-gemma-4-e2b-home-assistant) (~3.1 GB, public, no token required). The orchestrator detects `trusty` in the filename and auto-loads the short planner prompt.
+`bash scripts/download_models.sh` downloads the **Trusty-tuned Q4_K_S Gemma**
+(~3.1 GB) from [barqawiz/trusty-gemma-4-e2b-home-assistant](https://huggingface.co/barqawiz/trusty-gemma-4-e2b-home-assistant).
+Public repo, no token required. The orchestrator detects `trusty` in the
+filename and auto-loads the short planner prompt.
+
+### One-time setup
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-
 cp .env.example .env
-bash scripts/download_models.sh   # tuned Gemma + STT + TTS + wake-word, ~5 GB total
-docker compose up -d              # HA + Music Assistant + SearXNG
-
-bash scripts/run_llama_server.sh  # terminal A
-bash scripts/run_trusty.sh        # terminal B
-bash scripts/run_voice.sh         # terminal C needs mic permission
-
-bash scripts/smoke_test.sh        # verify
 ```
 
-> [!NOTE]
-> To A/B against the original un-tuned Google Gemma, set `GEMMA_VARIANT=untuned` and `HF_TOKEN=hf_...` in `.env` (the un-tuned repo is gated; accept the Gemma licence at <https://huggingface.co/google/gemma-4-E2B-it> and create a read token at <https://huggingface.co/settings/tokens>).
+### Download models and bring up services
 
-Open <http://localhost:8090/eyes/> for the eyes, <http://localhost:8090/admin/> for the admin panel.
+```bash
+bash scripts/download_models.sh   # tuned Gemma + STT + TTS + wake-word (~5 GB)
+docker compose up -d              # Home Assistant + Music Assistant + SearXNG
+```
 
-Full command flow (Mac + Pi) → [`RUNBOOK.md`](RUNBOOK.md).
-Custom wake-word training → [`WAKE_WORD.md`](WAKE_WORD.md).
+### Run Trusty (each in its own terminal)
+
+```bash
+bash scripts/run_llama_server.sh  # terminal A
+bash scripts/run_trusty.sh        # terminal B
+bash scripts/run_voice.sh         # terminal C, needs mic permission
+bash scripts/smoke_test.sh        # optional: end-to-end verification
+```
+
+### Local URLs
+
+| Page | URL |
+|---|---|
+| Eyes UI | [http://localhost:8090/eyes/](http://localhost:8090/eyes/) |
+| Admin panel | [http://localhost:8090/admin/](http://localhost:8090/admin/) |
+
+### Optional: A/B against the un-tuned Google Gemma
+
+The un-tuned repo is gated. Accept the [Gemma licence](https://huggingface.co/google/gemma-4-E2B-it),
+create a [read token](https://huggingface.co/settings/tokens), then set
+in `.env`:
+
+```bash
+GEMMA_VARIANT=untuned
+HF_TOKEN=hf_...
+```
+
+…and re-run `bash scripts/download_models.sh`.
+
+### More
+
+- Full command flow (Mac + Pi): [`RUNBOOK.md`](RUNBOOK.md)
+- Custom wake-word training: [`WAKE_WORD.md`](WAKE_WORD.md)
 
 ## Pi easy start
 
