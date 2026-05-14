@@ -93,6 +93,8 @@ Stop everything:
 tmux kill-session -t trusty
 ```
 
+## Linux Devices
+
 For any other Linux device (Ubuntu, Debian, etc.) the same flow applies, see the [Linux Setup wiki](https://github.com/Barqawiz/Trusty/wiki/Linux-Setup) for the small adjustments.
 
 ## Demo prompts
