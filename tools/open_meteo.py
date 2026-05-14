@@ -43,8 +43,7 @@ WEATHER_CODES = {
 
 
 async def _geocode(location: str) -> dict[str, Any] | None:
-    # 12 s tolerates occasional open-meteo CDN cold edges.
-    async with httpx.AsyncClient(timeout=12.0) as c:
+    async with httpx.AsyncClient(timeout=8.0) as c:
         r = await c.get(GEOCODE_URL, params={"name": location, "count": 1})
         r.raise_for_status()
         results = r.json().get("results") or []
@@ -63,30 +62,94 @@ async def _forecast(lat: float, lon: float, action: str) -> dict[str, Any]:
         "timezone": "auto",
         "forecast_days": 1,
     }
-    # Forecast endpoint sometimes takes 5-12 s; one retry on TimeoutException
-    # avoids surfacing transient slowness as "couldn't reach weather service".
-    last_err: Exception | None = None
-    for attempt in (1, 2):
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as c:
-                r = await c.get(FORECAST_URL, params=params)
-                r.raise_for_status()
-                return r.json()
-        except (httpx.TimeoutException, httpx.ReadError) as e:
-            last_err = e
-            log.warning("forecast attempt %d/2 slow: %s", attempt, type(e).__name__)
-            if attempt == 2:
-                raise
-    raise last_err if last_err else RuntimeError("forecast retry loop exited unexpectedly")
+    async with httpx.AsyncClient(timeout=8.0) as c:
+        r = await c.get(FORECAST_URL, params=params)
+        r.raise_for_status()
+        return r.json()
+
+
+def _advise(item: str, temp: float | None, rain_prob: int | None,
+            condition: str, place: str) -> str:
+    """Threshold-based advice for common 'do I need X' questions.
+
+    Thresholds are tuned for moderate climates and chosen so the answer
+    is decisive rather than hedging:
+      - jacket / coat: temp < 18 C, < 10 C is a "definitely"
+      - umbrella / raincoat: rain probability > 30%, > 60% is "yes"
+      - sunglasses: clear / mainly clear weather codes plus warmth
+      - hat / scarf / gloves: cold, rainy, or windy conditions
+    """
+    item = item.lower().strip()
+    t = temp if isinstance(temp, (int, float)) else None
+    rp = rain_prob if isinstance(rain_prob, (int, float)) else 0
+
+    if item in ("jacket", "coat"):
+        if t is None:
+            return f"In {place}, conditions are {condition}; a {item} is sensible."
+        if t < 10:
+            return f"It's {round(t)} degrees in {place}, definitely take a {item}."
+        if t < 18:
+            return f"It's {round(t)} degrees in {place}, take a {item}."
+        return f"It's {round(t)} degrees in {place}, you can skip the {item}."
+
+    if item in ("umbrella", "raincoat"):
+        if rp >= 60:
+            return f"Rain chance in {place} is {rp}%. Take an {item}."
+        if rp >= 30:
+            return f"Rain chance in {place} is {rp}%. An {item} would be wise."
+        return f"Rain chance in {place} is only {rp}%. You can skip the {item}."
+
+    if item in ("sunglasses", "hat"):
+        clear_codes = {0, 1}  # clear sky / mainly clear
+        # condition string maps from WEATHER_CODES; check temp + condition
+        sunny = "clear" in condition.lower() or "sunny" in condition.lower()
+        if sunny and (t or 0) > 20:
+            return f"It's sunny and {round(t)} degrees in {place}; bring {item}."
+        return f"In {place} it's {condition}; you probably don't need {item}."
+
+    if item in ("scarf", "gloves"):
+        if t is not None and t < 5:
+            return f"It's only {round(t)} degrees in {place}, take {item}."
+        return f"In {place} it's {round(t) if t is not None else condition}; you don't need {item}."
+
+    if item in ("shorts", "t-shirt", "tshirt"):
+        if t is not None and t > 22:
+            return f"It's {round(t)} degrees in {place}; {item} is fine."
+        return f"It's {round(t) if t is not None else condition} in {place}; might be cool for {item}."
+
+    # Generic fallback: combine temp + rain into one decisive sentence.
+    parts = []
+    if t is not None:
+        parts.append(f"{round(t)} degrees")
+    if rp >= 30:
+        parts.append(f"{rp}% chance of rain")
+    summary = ", ".join(parts) if parts else condition
+    return f"In {place}: {summary}."
 
 
 def register(registry: ToolRegistry, settings: Settings) -> None:
+    # Lazy memory accessor — used to fall back to the user's default
+    # location when an intent layer query (e.g. "do I need a jacket")
+    # doesn't carry one in the arguments. Avoids a hard import cycle by
+    # constructing the Memory instance per call.
+    def _default_location() -> str:
+        from app.memory import Memory  # local import
+        try:
+            mem = Memory(settings.project_root / "data" / "memory.json")
+            return (mem.get("default_location") or "").strip()
+        except Exception:
+            return ""
+
     async def handler(plan: PlannerOutput) -> ToolResult:
         location = (
             plan.arguments.get("location_text")
             or plan.arguments.get("location")
             or ""
         ).strip()
+        if not location:
+            # Intent-layer queries like "do I need a jacket" carry no
+            # location; fall back to the user-set default before giving up.
+            location = _default_location()
         if not location:
             return ToolResult(
                 ok=False,
@@ -120,6 +183,9 @@ def register(registry: ToolRegistry, settings: Settings) -> None:
                 )
             elif plan.action == "current":
                 speak = f"In {place} it's {temp} degrees with {condition}."
+            elif plan.action == "advise":
+                item = (plan.arguments.get("item") or "jacket").lower().strip()
+                speak = _advise(item, temp, rain_prob, condition, place)
             else:
                 speak = (
                     f"In {place} expect {condition}, high {high} and low {low}, "
@@ -139,11 +205,9 @@ def register(registry: ToolRegistry, settings: Settings) -> None:
                 speak=speak,
             )
         except httpx.HTTPError as e:
-            # ReadTimeout stringifies as "" — capture the type for actionable logs.
-            err = f"{type(e).__name__}: {e}".rstrip(": ")
-            log.warning("weather fetch failed: %s", err)
+            log.warning("weather fetch failed: %s", e)
             return ToolResult(
-                ok=False, error=err, speak="I had trouble reaching the weather service."
+                ok=False, error=str(e), speak="I had trouble reaching the weather service."
             )
 
     registry.register("weather.live", handler)

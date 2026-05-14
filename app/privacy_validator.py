@@ -1,6 +1,7 @@
 """The hard privacy gate. Runs after the planner and before any tool executes."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,9 @@ from typing import Any
 import yaml
 
 from .schemas import PlannerOutput
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -77,8 +81,9 @@ class PrivacyValidator:
                 # already covered by the global check above; defensive
                 continue
 
-        # 6. requires_internet must agree with the tool definition for live tools.
+        # 6. requires_internet must match tools.yaml; mismatch is a model bug, not auto-fixed.
         if tool.get("internet") is True and plan.requires_internet is False:
+            log.warning("MODEL BUG: tool=%r emitted with requires_internet=false", plan.tool)
             return ValidationResult(
                 False, f"Tool '{plan.tool}' needs internet but plan says otherwise."
             )

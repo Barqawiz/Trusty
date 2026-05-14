@@ -684,6 +684,20 @@ class Orchestrator:
             lines.append(f"  TRUSTY: {reply.strip()}")
         return "\n".join(lines)
 
+    def _repair_internet_flag(self, plan: PlannerOutput) -> None:
+        """Align plan.requires_internet with tools.yaml so model output
+        slips don't trip the privacy validator."""
+        tool = self.validator.tools.get(plan.tool)
+        if not tool:
+            return
+        needs = tool.get("internet")
+        if needs is True and plan.requires_internet is False:
+            log.info("repair: forcing requires_internet=true for tool=%s", plan.tool)
+            plan.requires_internet = True
+        elif needs is False and plan.requires_internet is True:
+            log.info("repair: forcing requires_internet=false for tool=%s", plan.tool)
+            plan.requires_internet = False
+
     async def _run_plan(self, user_text: str, plan: PlannerOutput, mode: str) -> ChatResponse:
         """Reusable tail of handle_text: validate, execute, finalize, ledger.
         Used by both the planner path and the pending-slot continuation path."""
@@ -706,6 +720,8 @@ class Orchestrator:
                 final_response=self.policy.offline_message,
                 ledger=ledger,
             )
+        # Repair requires_internet before the privacy validator runs.
+        self._repair_internet_flag(plan)
         # Privacy validator
         result = self.validator.validate(plan)
         if not result.ok:
@@ -1109,6 +1125,8 @@ class Orchestrator:
                 ledger=ledger,
             )
 
+        # Repair requires_internet before the privacy validator runs.
+        self._repair_internet_flag(plan)
         # 3. Privacy validator
         result = self.validator.validate(plan)
         if not result.ok:
@@ -1255,6 +1273,7 @@ async def build_orchestrator(
         base_url=settings.LLAMA_BASE_URL,
         prompts_dir=project_root / "prompts",
         timeout=float(os.environ.get("LLAMA_REQUEST_TIMEOUT_S", "180")),
+        model_path=settings.GEMMA_MODEL_PATH,
     )
 
     # Late import so we don't drag tool deps when only orchestrating tests.
