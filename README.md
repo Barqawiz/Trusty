@@ -1,5 +1,8 @@
 # Trusty (Gemma)
 
+[![Hugging Face Model](https://img.shields.io/badge/🤗%20Hugging%20Face-Model-ffcc4d?style=for-the-badge)](https://huggingface.co/barqawiz/trusty-gemma-4-e2b-home-assistant)
+
+
 ### Privacy-first local voice assistant for Mac & Raspberry Pi 5.
 
 > Wake phrase: **"Hey Trusty"**.
